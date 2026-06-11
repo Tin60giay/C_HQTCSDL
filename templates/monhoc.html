@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Quản lý Môn Học</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #c01920;
+            --primary-dark: #8c1015;
+            --primary-light: #2d1314;
+            --bg-body: #0a0a0a;
+            --bg-card: #1a1a1a;
+            --bg-input: #111;
+            --text-main: #fff;
+            --text-muted: #a1a1aa;
+            --border: #3f3f46;
+            --radius: 12px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: radial-gradient(circle at top, var(--bg-card), var(--bg-body) 70%);
+            color: var(--text-main);
+            min-height: 100vh;
+            padding: 1.5rem;
+        }
+
+        .container {
+            max-width: 100%;
+            margin: 0 auto;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .header h1 {
+            font-size: 1.3rem;
+        }
+
+        .btn {
+            padding: 0.5rem 1.2rem;
+            border-radius: 8px;
+            border: none;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: opacity 0.2s;
+        }
+
+        .btn:hover:not(:disabled) {
+            opacity: 0.85;
+        }
+
+        .btn:disabled {
+            background: #27272a !important;
+            color: #52525b !important;
+            cursor: not-allowed;
+            opacity: 0.6;
+            filter: grayscale(1);
+        }
+
+        .btn-primary {
+            background: linear-gradient(to right, var(--primary), var(--primary-dark));
+            color: #fff;
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-main);
+        }
+
+        .btn-danger {
+            background: #7f1d1d;
+            color: #fff;
+        }
+
+        .btn-sm {
+            padding: 0.35rem 0.8rem;
+            font-size: 0.8rem;
+        }
+
+        .toolbar {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .alert {
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            font-size: 0.875rem;
+        }
+
+        .alert-success {
+            background: rgba(34, 197, 94, 0.15);
+            border: 1px solid rgba(34, 197, 94, 0.3);
+            color: #86efac;
+        }
+
+        .alert-error {
+            background: rgba(220, 38, 38, 0.15);
+            border: 1px solid rgba(220, 38, 38, 0.3);
+            color: #fca5a5;
+        }
+
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.875rem;
+        }
+
+        th {
+            text-align: left;
+            padding: 0.6rem 0.75rem;
+            color: var(--text-muted);
+            border-bottom: 1px solid var(--border);
+            font-weight: 600;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        td {
+            padding: 0.6rem 0.75rem;
+            border-bottom: 1px solid #2a2a2a;
+        }
+
+        tr.selected td {
+            background: var(--primary-light);
+        }
+
+        tr:hover td {
+            background: #222;
+            cursor: pointer;
+        }
+
+        tr.selected:hover td {
+            background: var(--primary-light);
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+        }
+
+        label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #f87171;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        input[type=text],
+        input[type=number] {
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 0.65rem 0.9rem;
+            color: var(--text-main);
+            font-family: inherit;
+            font-size: 0.9rem;
+            width: 100%;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        .back-link {
+            color: #f87171;
+            text-decoration: none;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        .back-link:hover {
+            text-decoration: underline;
+        }
+        .frozen-row td {
+            color: #52525b !important;
+            background: rgba(39, 39, 42, 0.4) !important;
+        }
+        .frozen-badge {
+            font-size: 0.7rem;
+            color: #fbbf24;
+            margin-left: 0.35rem;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📖 Quản lý Môn Học</h1>
+            <a href="/dashboard" class="back-link">← Về Dashboard</a>
+        </div>
+
+        {% with messages = get_flashed_messages() %}
+        {% if messages %}{% for m in messages %}
+        <div
+            class="alert {% if 'thành công' in m.lower() or 'success' in m.lower() %}alert-success{% else %}alert-error{% endif %}">
+            {{ m }}</div>
+        {% endfor %}{% endif %}
+        {% endwith %}
+
+        <div class="card">
+            <div class="toolbar">
+                <button class="btn btn-primary btn-sm" id="btnThem" onclick="themMoi()">＋ Tạo mới</button>
+                <button class="btn btn-danger btn-sm" id="btnXoa" onclick="xoaDong()" disabled>🗑 Xóa</button>
+                <button class="btn btn-primary btn-sm" id="btnGhi" onclick="ghiDulieu()" disabled>💾 Lưu dữ liệu</button>
+                <button class="btn btn-outline btn-sm" id="btnHuy" onclick="phucHoi()" disabled>↩ Phục hồi</button>
+                <button class="btn btn-outline btn-sm" onclick="openHistory()" style="margin-left:auto;">🕓 Lịch sử</button>
+            </div>
+
+            <!-- Lọc tức thì -->
+            <div style="margin-bottom:.75rem;">
+                <input type="text" id="filterMH" oninput="locBang()" placeholder="🔍 Tìm mã hoặc tên môn học..."
+                    style="background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:.45rem .75rem;color:var(--text-main);font-family:inherit;font-size:.875rem;width:100%;max-width:360px;">
+            </div>
+
+            <table id="tblMonhoc">
+                <thead>
+                    <tr>
+                        <th>Mã MH</th>
+                        <th>Tên môn học</th>
+                        <th>Tiết LT</th>
+                        <th>Tiết TH</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for m in monhoc_list %}
+                    <tr class="{% if m.IS_FROZEN %}frozen-row{% endif %}" 
+                        onclick="chonDong(this, '{{ m.MAMH }}', '{{ m.TENMH }}', '{{ m.SOTIET_LT }}', '{{ m.SOTIET_TH }}', {{ 'true' if m.IS_FROZEN else 'false' }})">
+                        <td>
+                            {{ m.MAMH }}
+                            {% if m.IS_FROZEN %}<span class="frozen-badge" title="Dữ liệu lịch sử đã bị đóng băng">🔒</span>{% endif %}
+                        </td>
+                        <td>{{ m.TENMH }}</td>
+                        <td>{{ m.SOTIET_LT }}</td>
+                        <td>{{ m.SOTIET_TH }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="4" style="text-align:center; color: var(--text-muted); padding: 2rem;">Chưa có dữ
+                            liệu</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="card" id="formCard">
+            <h3 style="margin-bottom:1rem; font-size:1rem;">Thông tin môn học</h3>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Mã môn học</label>
+                    <input type="text" id="fMAMH" placeholder="VD: CTDL" maxlength="10">
+                </div>
+                <div class="form-group">
+                    <label>Tên môn học</label>
+                    <input type="text" id="fTENMH" placeholder="VD: Cấu trúc dữ liệu">
+                </div>
+                <div class="form-group">
+                    <label>Số tiết lý thuyết</label>
+                    <input type="number" id="fLT" value="0" min="0">
+                </div>
+                <div class="form-group">
+                    <label>Số tiết thực hành</label>
+                    <input type="number" id="fTH" value="0" min="0">
+                </div>
+            </div>
+            <div style="margin-top: 1.5rem; text-align: right;">
+                <button class="btn btn-outline btn-sm" onclick="xoaTrang()">🧹 Làm mới form</button>
+            </div>
+        </div>
+
+        <!-- Hidden forms -->
+        <form id="frmThem" method="POST" action="/monhoc/them">
+            <input type="hidden" name="mamh" id="h_them_mamh">
+            <input type="hidden" name="tenmh" id="h_them_tenmh">
+            <input type="hidden" name="sotiet_lt" id="h_them_lt">
+            <input type="hidden" name="sotiet_th" id="h_them_th">
+        </form>
+        <form id="frmGhi" method="POST" action="/monhoc/ghi">
+            <input type="hidden" name="mamh" id="h_ghi_mamh">
+            <input type="hidden" name="tenmh" id="h_ghi_tenmh">
+            <input type="hidden" name="sotiet_lt" id="h_ghi_lt">
+            <input type="hidden" name="sotiet_th" id="h_ghi_th">
+        </form>
+        <form id="frmXoa" method="POST" action="/monhoc/xoa">
+            <input type="hidden" name="mamh" id="h_xoa_mamh">
+        </form>
+    </div>
+
+    <script src="/static/history.js"></script>
+    <script>
+        let selectedMAMH = null;
+        let originalData = {};
+
+        document.addEventListener('DOMContentLoaded', () => {
+            checkRealtime('fMAMH', 'monhoc');
+            enableSaveOnInputFocus();
+            document.getElementById('fLT').addEventListener('input', validateMonHocLT_TH);
+            document.getElementById('fTH').addEventListener('input', validateMonHocLT_TH);
+            document.querySelectorAll('.form-grid input').forEach(el => {
+                el.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' && !formHasError) {
+                        e.preventDefault();
+                        ghiDulieu();
+                    }
+                });
+            });
+            updateActionButtons('idle');
+        });
+
+        function validateMonHocLT_TH() {
+            const fLT = document.getElementById('fLT');
+            const fTH = document.getElementById('fTH');
+            let lt = parseInt(fLT.value); 
+            let th = parseInt(fTH.value);
+            
+            let ltErr = isNaN(lt) || lt < 30;
+            let thErr = isNaN(th) || th < 0;
+
+            setValidationMsg('fLT', ltErr ? 'Tiết Lý thuyết phải từ 30 trở lên.' : 'Hợp lệ.', ltErr);
+            setValidationMsg('fTH', thErr ? 'Tiết Thực hành không được âm.' : 'Hợp lệ.', thErr);
+
+            if (ltErr || thErr) {
+                updateActionButtons('error');
+            } else {
+                // Kiểm tra lỗi mã trước khi unlock
+                const idErr = document.getElementById('err_fMAMH');
+                if (idErr && idErr.style.display === 'block' && idErr.textContent.includes('tồn tại')) {
+                    updateActionButtons('error');
+                } else if (selectedMAMH) {
+                    updateActionButtons('editing');
+                } else {
+                    updateActionButtons('adding');
+                }
+            }
+        }
+
+        function locBang() {
+            const txt = document.getElementById('filterMH').value.toLowerCase();
+            document.querySelectorAll('#tblMonhoc tbody tr[data-text]').forEach(tr => {
+                tr.style.display = !txt || tr.dataset.text.toLowerCase().includes(txt) ? '' : 'none';
+            });
+        }
+
+        function chonDong(row, mamh, tenmh, lt, th, isFrozen) {
+            document.querySelectorAll('#tblMonhoc tr').forEach(r => r.classList.remove('selected'));
+            row.classList.add('selected');
+            selectedMAMH = mamh;
+
+            if (isFrozen) {
+                setValidationMsg('fMAMH', '⚠️ Dữ liệu lịch sử đã bị đóng băng, không thể chỉnh sửa.', true);
+                toggleFormLock(true, ['fMAMH', 'fTENMH', 'fLT', 'fTH']);
+                updateActionButtons('error'); // Khóa tất cả nút trừ nút làm mới
+            } else {
+                resetValidationState('fMAMH');
+                toggleFormLock(false, ['fTENMH', 'fLT', 'fTH']);
+                updateActionButtons('editing');
+            }
+            
+            const fM = document.getElementById('fMAMH');
+            fM.value = mamh;
+            fM.readOnly = true;
+            fM.style.borderColor = isFrozen ? '#fca5a5' : 'var(--border)';
+            
+            document.getElementById('fTENMH').value = tenmh;
+            document.getElementById('fLT').value = lt;
+            document.getElementById('fTH').value = th;
+            originalData = { mamh, tenmh, lt, th };
+            
+            checkCanDelete('monhoc', mamh);
+        }
+
+        function themMoi() {
+            if (formHasError) { alert('Vui lòng kiểm tra lại dữ liệu trước khi thêm.'); return; }
+            const mamh = document.getElementById('fMAMH').value.trim();
+            const tenmh = document.getElementById('fTENMH').value.trim();
+            const lt = document.getElementById('fLT').value;
+            const th = document.getElementById('fTH').value;
+            if (!mamh || !tenmh) { alert('Vui lòng nhập đầy đủ Mã và Tên môn học.'); return; }
+            document.getElementById('h_them_mamh').value = mamh;
+            document.getElementById('h_them_tenmh').value = tenmh;
+            document.getElementById('h_them_lt').value = lt;
+            document.getElementById('h_them_th').value = th;
+            document.getElementById('frmThem').submit();
+        }
+
+        function ghiDulieu() {
+            if (formHasError) return;
+            if (!selectedMAMH) { alert('Vui lòng chọn một môn học trong danh sách để cập nhật.'); return; }
+            const mamh = document.getElementById('fMAMH').value.trim();
+            const tenmh = document.getElementById('fTENMH').value.trim();
+            const lt = document.getElementById('fLT').value;
+            const th = document.getElementById('fTH').value;
+            if (!mamh || !tenmh) { alert('Vui lòng nhập đầy đủ Mã và Tên môn học.'); return; }
+            document.getElementById('h_ghi_mamh').value = mamh;
+            document.getElementById('h_ghi_tenmh').value = tenmh;
+            document.getElementById('h_ghi_lt').value = lt;
+            document.getElementById('h_ghi_th').value = th;
+            document.getElementById('frmGhi').submit();
+        }
+
+        function xoaDong() {
+            if (!selectedMAMH) { alert('Vui lòng chọn môn học cần xóa.'); return; }
+            if (!confirm(`Xóa môn học "${selectedMAMH}"?`)) return;
+            document.getElementById('h_xoa_mamh').value = selectedMAMH;
+            document.getElementById('frmXoa').submit();
+        }
+
+        function phucHoi() {
+            if (selectedMAMH && originalData.mamh) {
+                document.getElementById('fTENMH').value = originalData.tenmh;
+                document.getElementById('fLT').value = originalData.lt;
+                document.getElementById('fTH').value = originalData.th;
+                validateMonHocLT_TH();
+            } else {
+                themMoi();
+            }
+        }
+
+        function xoaTrang() {
+            resetValidationState('fMAMH');
+            setValidationMsg('fLT', null);
+            setValidationMsg('fTH', null);
+            document.querySelectorAll('#tblMonhoc tr').forEach(r => r.classList.remove('selected'));
+            selectedMAMH = null;
+            const fM = document.getElementById('fMAMH');
+            fM.value = ''; fM.readOnly = false; fM.style.borderColor = 'var(--border)';
+            document.getElementById('fTENMH').value = '';
+            document.getElementById('fLT').value = '30';
+            document.getElementById('fTH').value = '0';
+            updateActionButtons('idle');
+            fM.focus();
+        }
+    </script>
+</body>
+
+</html>

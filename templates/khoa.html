@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Quản lý Khoa</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #c01920; --primary-dark: #8c1015; --primary-light: #2d1314;
+            --bg-body: #0a0a0a; --bg-card: #1a1a1a; --bg-input: #111;
+            --text-main: #fff; --text-muted: #a1a1aa; --border: #3f3f46; --radius: 12px;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Inter', sans-serif; background: radial-gradient(circle at top, var(--bg-card), var(--bg-body) 70%); color: var(--text-main); min-height: 100vh; padding: 1.5rem; }
+        .container { max-width: 100%; margin: 0 auto; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border); }
+        .header h1 { font-size: 1.3rem; }
+        .btn { padding: 0.5rem 1.2rem; border-radius: 8px; border: none; font-weight: 600; font-family: inherit; cursor: pointer; font-size: 0.9rem; transition: opacity 0.2s; }
+        .btn:hover:not(:disabled) { opacity: 0.85; }
+        .btn:disabled {
+            background: #27272a !important;
+            color: #52525b !important;
+            cursor: not-allowed;
+            opacity: 0.6;
+            filter: grayscale(1);
+        }
+        .btn-primary { background: linear-gradient(to right, var(--primary), var(--primary-dark)); color: #fff; }
+        .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text-main); }
+        .btn-danger { background: #7f1d1d; color: #fff; }
+        .btn-sm { padding: 0.35rem 0.8rem; font-size: 0.8rem; }
+        .toolbar { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
+        .alert { padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1rem; font-size: 0.875rem; }
+        .alert-success { background: rgba(34,197,94,0.15); border: 1px solid rgba(34,197,94,0.3); color: #86efac; }
+        .alert-error { background: rgba(220,38,38,0.15); border: 1px solid rgba(220,38,38,0.3); color: #fca5a5; }
+        .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; margin-bottom: 1.5rem; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+        th { text-align: left; padding: 0.6rem 0.75rem; color: var(--text-muted); border-bottom: 1px solid var(--border); font-weight: 600; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+        td { padding: 0.6rem 0.75rem; border-bottom: 1px solid #2a2a2a; }
+        tr.selected td { background: var(--primary-light); }
+        tr:hover td { background: #222; cursor: pointer; }
+        tr.selected:hover td { background: var(--primary-light); }
+        .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; }
+        .form-group { display: flex; flex-direction: column; gap: 0.4rem; }
+        label { font-size: 0.75rem; font-weight: 600; color: #f87171; text-transform: uppercase; letter-spacing: 0.05em; }
+        input[type=text] { background: var(--bg-input); border: 1px solid var(--border); border-radius: 8px; padding: 0.65rem 0.9rem; color: var(--text-main); font-family: inherit; font-size: 0.9rem; width: 100%; }
+        input:focus { outline: none; border-color: var(--primary); }
+        .back-link { color: #f87171; text-decoration: none; font-size: 0.85rem; font-weight: 600; }
+        .back-link:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏢 Quản lý Khoa</h1>
+            <a href="/dashboard" class="back-link">← Về Dashboard</a>
+        </div>
+
+        {% with messages = get_flashed_messages() %}
+        {% if messages %}{% for m in messages %}
+        <div class="alert {% if 'thành công' in m.lower() or 'success' in m.lower() %}alert-success{% else %}alert-error{% endif %}">{{ m }}</div>
+        {% endfor %}{% endif %}
+        {% endwith %}
+
+        <div class="card">
+            <div class="toolbar">
+                <button class="btn btn-primary btn-sm" id="btnThem" onclick="themMoi()">＋ Tạo mới</button>
+                <button class="btn btn-danger btn-sm" id="btnXoa" onclick="xoaDong()" disabled>🗑 Xóa</button>
+                <button class="btn btn-primary btn-sm" id="btnGhi" onclick="ghiDulieu()" disabled>💾 Lưu dữ liệu</button>
+                <button class="btn btn-outline btn-sm" id="btnHuy" onclick="phucHoi()" disabled>↩ Phục hồi</button>
+                <button class="btn btn-outline btn-sm" onclick="openHistory()" style="margin-left:auto;">🕓 Lịch sử</button>
+            </div>
+
+            <div style="margin-bottom:.75rem;">
+                <input type="text" id="filterKhoa" oninput="locBang()" placeholder="🔍 Tìm mã hoặc tên khoa..." style="background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:.45rem .75rem;color:var(--text-main);font-family:inherit;font-size:.875rem;width:100%;max-width:360px;">
+            </div>
+
+            <table id="tblKhoa">
+                <thead>
+                    <tr><th>Mã Khoa</th><th>Tên Khoa</th></tr>
+                </thead>
+                <tbody>
+                    {% for k in khoa_list %}
+                    <tr data-text="{{ k.MAKHOA }} {{ k.TENKHOA }}" onclick="chonDong(this, '{{ k.MAKHOA }}', '{{ k.TENKHOA }}')">
+                        <td>{{ k.MAKHOA }}</td>
+                        <td>{{ k.TENKHOA }}</td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="2" style="text-align:center; color: var(--text-muted); padding: 2rem;">Chưa có dữ liệu</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="card" id="formCard">
+            <h3 style="margin-bottom:1rem; font-size:1rem;">Thông tin khoa</h3>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Mã khoa</label>
+                    <input type="text" id="fMAKHOA" placeholder="VD: CNTT" maxlength="10">
+                </div>
+                <div class="form-group">
+                    <label>Tên khoa</label>
+                    <input type="text" id="fTENKHOA" placeholder="VD: Công nghệ thông tin">
+                </div>
+            </div>
+            <div style="margin-top: 1.5rem; text-align: right;">
+                <button class="btn btn-outline btn-sm" onclick="xoaTrang()">🧹 Làm mới form</button>
+            </div>
+        </div>
+
+        <form id="frmThem" method="POST" action="/khoa/them">
+            <input type="hidden" name="makhoa" id="h_them_makhoa">
+            <input type="hidden" name="tenkhoa" id="h_them_tenkhoa">
+        </form>
+        <form id="frmGhi" method="POST" action="/khoa/ghi">
+            <input type="hidden" name="makhoa" id="h_ghi_makhoa">
+            <input type="hidden" name="tenkhoa" id="h_ghi_tenkhoa">
+        </form>
+        <form id="frmXoa" method="POST" action="/khoa/xoa">
+            <input type="hidden" name="makhoa" id="h_xoa_makhoa">
+        </form>
+    </div>
+
+    <script src="/static/history.js"></script>
+    <script>
+        let sel = null;
+        let orig = {};
+
+        document.addEventListener('DOMContentLoaded', () => {
+            checkRealtime('fMAKHOA', 'khoa');
+            enableSaveOnInputFocus();
+            document.querySelectorAll('.form-grid input').forEach(el => {
+                el.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' && !formHasError) {
+                        e.preventDefault();
+                        ghiDulieu();
+                    }
+                });
+            });
+            updateActionButtons('idle');
+        });
+
+        function locBang() {
+            const txt = document.getElementById('filterKhoa').value.toLowerCase();
+            document.querySelectorAll('#tblKhoa tbody tr[data-text]').forEach(tr => {
+                tr.style.display = !txt || tr.dataset.text.toLowerCase().includes(txt) ? '' : 'none';
+            });
+        }
+
+        function chonDong(row, makhoa, tenkhoa) {
+            resetValidationState('fMAKHOA');
+            document.querySelectorAll('#tblKhoa tr').forEach(r => r.classList.remove('selected'));
+            row.classList.add('selected');
+            sel = makhoa;
+            document.getElementById('fMAKHOA').value = makhoa;
+            document.getElementById('fMAKHOA').readOnly = true;
+            document.getElementById('fTENKHOA').value = tenkhoa;
+            orig = { makhoa, tenkhoa };
+            updateActionButtons('editing');
+            checkCanDelete('khoa', makhoa);
+        }
+
+        function themMoi() {
+            if (formHasError) { alert('Vui lòng kiểm tra lại dữ liệu trước khi thêm.'); return; }
+            const makhoa = document.getElementById('fMAKHOA').value.trim();
+            const tenkhoa = document.getElementById('fTENKHOA').value.trim();
+            if (!makhoa || !tenkhoa) { alert('Vui lòng nhập đầy đủ Mã và Tên khoa.'); return; }
+            document.getElementById('h_them_makhoa').value = makhoa;
+            document.getElementById('h_them_tenkhoa').value = tenkhoa;
+            document.getElementById('frmThem').submit();
+        }
+
+        function ghiDulieu() {
+            if (formHasError) return;
+            if (!sel) { alert('Vui lòng chọn một khoa trong danh sách để cập nhật.'); return; }
+            const makhoa = document.getElementById('fMAKHOA').value.trim();
+            const tenkhoa = document.getElementById('fTENKHOA').value.trim();
+            if (!makhoa || !tenkhoa) { alert('Vui lòng nhập đầy đủ Mã và Tên khoa.'); return; }
+            document.getElementById('h_ghi_makhoa').value = makhoa;
+            document.getElementById('h_ghi_tenkhoa').value = tenkhoa;
+            document.getElementById('frmGhi').submit();
+        }
+
+        function xoaDong() {
+            if (!sel) { alert('Vui lòng chọn khoa cần xóa.'); return; }
+            if (!confirm(`Xóa khoa "${sel}"?`)) return;
+            document.getElementById('h_xoa_makhoa').value = sel;
+            document.getElementById('frmXoa').submit();
+        }
+
+        function phucHoi() {
+            if (sel && orig.makhoa) {
+                document.getElementById('fTENKHOA').value = orig.tenkhoa;
+            } else {
+                themMoi();
+            }
+        }
+
+        function xoaTrang() {
+            resetValidationState('fMAKHOA');
+            document.querySelectorAll('#tblKhoa tr').forEach(r => r.classList.remove('selected'));
+            sel = null; orig = {};
+            document.getElementById('fMAKHOA').value = '';
+            document.getElementById('fMAKHOA').readOnly = false;
+            document.getElementById('fTENKHOA').value = '';
+            updateActionButtons('idle');
+            document.getElementById('fMAKHOA').focus();
+        }
+    </script>
+</body>
+</html>

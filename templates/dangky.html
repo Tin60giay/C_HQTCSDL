@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Đăng Ký Lớp Tín Chỉ</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root{--primary:#c01920;--primary-dark:#8c1015;--primary-light:#2d1314;--bg-body:#0a0a0a;--bg-card:#1a1a1a;--bg-input:#111;--text-main:#fff;--text-muted:#a1a1aa;--border:#3f3f46;--radius:12px;}
+        *{box-sizing:border-box;margin:0;padding:0;}
+        body{font-family:'Inter',sans-serif;background:radial-gradient(circle at top,var(--bg-card),var(--bg-body) 70%);color:var(--text-main);min-height:100vh;padding:1.5rem;}
+        .container{max-width:100%;margin:0 auto;}
+        .btn-success{background:rgba(34,197,94,.9);color:#fff;border:1px solid rgba(34,197,94,.5);}
+        .btn-success:hover{background:#16a34a;}
+        .btn-disabled{background:#2a2a2a;color:#52525b;cursor:not-allowed;pointer-events:none;border:1px solid #3f3f46;}
+        .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;padding-bottom:1rem;border-bottom:1px solid var(--border);}
+        .btn{padding:.45rem 1rem;border-radius:8px;border:none;font-weight:600;font-family:inherit;cursor:pointer;font-size:.85rem;transition:all .2s;}
+        .btn:hover{opacity:.85;transform:translateY(-1px);}
+        .btn:active{transform:translateY(0);}
+        .btn:disabled{opacity:0.5;cursor:not-allowed;pointer-events:none;}
+        .btn-primary{background:linear-gradient(to right,var(--primary),var(--primary-dark));color:#fff;}
+        .btn-outline{background:transparent;border:1px solid var(--border);color:var(--text-main);}
+        .btn-sm{padding:.3rem .7rem;font-size:.78rem;}
+        .card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:1.25rem;margin-bottom:1.25rem;position:relative;overflow:hidden;}
+        .filter-bar{display:flex;gap:.75rem;flex-wrap:wrap;align-items:flex-end;}
+        .fg{display:flex;flex-direction:column;gap:.3rem;}
+        .fg label{font-size:.72rem;font-weight:600;color:#f87171;text-transform:uppercase;}
+        .fg input,.fg select{background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:.45rem .75rem;color:var(--text-main);font-family:inherit;font-size:.875rem;min-width:140px;}
+        .fg input:focus,.fg select:focus{outline:none;border-color:var(--primary);}
+        select option{background:#1a1a1a;}
+        .sv-info{display:flex;gap:1.5rem;flex-wrap:wrap;padding:.65rem .9rem;background:#111;border-radius:8px;border:1px solid var(--border);font-size:.85rem;margin-top:.75rem;}
+        .sv-info span b{color:#f87171;}
+        table{width:100%;border-collapse:collapse;font-size:.83rem;}
+        th{text-align:left;padding:.5rem .6rem;color:var(--text-muted);border-bottom:1px solid var(--border);font-weight:600;font-size:.7rem;text-transform:uppercase;}
+        td{padding:.45rem .6rem;border-bottom:1px solid #2a2a2a;}
+        .badge{display:inline-block;padding:.2rem .5rem;border-radius:4px;font-size:.72rem;font-weight:600;}
+        .badge-green{background:rgba(34,197,94,.15);color:#86efac;}
+        .badge-muted{background:#2a2a2a;color:var(--text-muted);}
+        .alert{padding:.65rem 1rem;border-radius:8px;margin-bottom:1rem;font-size:.85rem;}
+        .alert-success{background:rgba(34,197,94,.15);border:1px solid rgba(34,197,94,.3);color:#86efac;}
+        .alert-error{background:rgba(220,38,38,.15);border:1px solid rgba(220,38,38,.3);color:#fca5a5;}
+        .back-link{color:#f87171;text-decoration:none;font-size:.85rem;font-weight:600;}
+        .spinner{color:var(--text-muted);font-size:.83rem;padding:.4rem 0;display:none;}
+        #ltcTable{display:none;}
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>📚 Đăng Ký Lớp Tín Chỉ</h1>
+        <a href="/dashboard" class="back-link">← Về Dashboard</a>
+    </div>
+
+    {% with messages = get_flashed_messages() %}
+    {% if messages %}{% for m in messages %}
+    <div class="alert {% if 'thành công' in m.lower() %}alert-success{% else %}alert-error{% endif %}">{{ m }}</div>
+    {% endfor %}{% endif %}{% endwith %}
+
+    <!-- Thông tin SV (tự động từ session) -->
+    <div class="card">
+        <div class="sv-info">
+            <span>Mã SV: <b>{{ masv }}</b></span>
+            <span>Họ tên: <b>{{ hoten }}</b></span>
+            <span>Lớp: <b>{{ malop }}</b></span>
+        </div>
+    </div>
+
+    <!-- Bộ lọc lớp tín chỉ -->
+    <div class="card">
+        <div class="filter-bar" style="flex-direction:row;align-items:flex-end;gap:1rem;flex-wrap:nowrap;">
+            <div class="fg" style="flex:1;min-width:160px;">
+                <label>Niên khóa</label>
+                <select id="fNK" onchange="autoTimLop()" style="width:100%;">
+                    <option value="">-- Chọn niên khóa --</option>
+                    {% for nk in nienkhoa_list %}
+                    <option value="{{ nk }}">{{ nk }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="fg" style="min-width:140px;">
+                <label>Học kỳ</label>
+                <select id="fHK" onchange="autoTimLop()">
+                    <option value="1">Học kỳ 1</option>
+                    <option value="2">Học kỳ 2</option>
+                    <option value="3">Học kỳ 3</option>
+                </select>
+            </div>
+        </div>
+        {% if not nienkhoa_list %}
+        <div style="color:#fbbf24;font-size:.82rem;margin-top:.6rem;">
+            ⚠️ Chưa có lớp tín chỉ nào được mở. Vui lòng liên hệ Phòng Giáo Vụ.
+        </div>
+        {% endif %}
+        <div class="spinner" id="spinner">⏳ Đang tải...</div>
+        <div id="errMsg" style="color:#fca5a5;font-size:.83rem;margin-top:.5rem;"></div>
+    </div>
+
+    <style>
+        .section-title{display:flex;align-items:center;gap:.6rem;margin-bottom:.85rem;font-size:1rem;color:#f87171;font-weight:700;letter-spacing:.02em;}
+        .section-title i{font-style:normal;font-size:1.2rem;}
+        .empty-state{text-align:center;color:var(--text-muted);padding:2.5rem 1rem;border:1px dashed #333;border-radius:8px;font-style:italic;}
+    </style>
+
+    <!-- Danh sách lớp đã chọn (Hành động nhanh) -->
+    <div class="card" id="selectedSection" style="border-color:#16a34a; background: rgba(22, 163, 74, 0.03); display:none;">
+        <h3 class="section-title"><i>✅</i> DANH SÁCH MÔN ĐÃ CHỌN</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>MALTC</th><th>Môn học</th><th>Nhóm</th><th>Giảng viên</th><th>Thao tác</th>
+                </tr>
+            </thead>
+            <tbody id="tbodySelected"></tbody>
+        </table>
+    </div>
+
+    <!-- Danh sách lớp tín chỉ để tìm kiếm -->
+    <div class="card" id="ltcTable">
+        <h3 class="section-title" id="ltcTitle"><i>🔍</i> KẾT QUẢ TÌM KIẾM</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>MALTC</th><th>Môn học</th><th>Nhóm</th><th>Giảng viên</th><th>Khoa</th><th>Số SV</th><th>Trạng thái</th>
+                </tr>
+            </thead>
+            <tbody id="tbodyLTC"></tbody>
+        </table>
+    </div>
+</div>
+
+<script src="/static/history.js"></script>
+<script>
+const MASV = "{{ masv }}";
+let _autoTimer = null;
+let currentList = [];
+
+function autoTimLop() {
+    clearTimeout(_autoTimer);
+    _autoTimer = setTimeout(timLop, 400); 
+}
+
+async function timLop() {
+    const nk = document.getElementById('fNK').value.trim();
+    const hk = document.getElementById('fHK').value;
+    const errEl = document.getElementById('errMsg');
+    errEl.textContent = '';
+    if (!nk) { errEl.textContent = 'Vui lòng chọn niên khóa.'; return; }
+
+    document.getElementById('spinner').style.display = 'block';
+    document.getElementById('ltcTable').style.display = 'none';
+
+    try {
+        const res = await fetch('/dangky/loc', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({nienkhoa: nk, hocky: hk, masv: MASV})
+        });
+        const data = await res.json();
+        document.getElementById('spinner').style.display = 'none';
+
+        if (!data.ok) { errEl.textContent = data.msg || 'Lỗi tải dữ liệu.'; return; }
+
+        currentList = data.list;
+        renderAll();
+        document.getElementById('ltcTable').style.display = 'block';
+    } catch(e) {
+        document.getElementById('spinner').style.display = 'none';
+        errEl.textContent = 'Lỗi kết nối máy chủ.';
+    }
+}
+
+function renderAll() {
+    const tbodyLTC = document.getElementById('tbodyLTC');
+    const tbodySelected = document.getElementById('tbodySelected');
+    const selectedDiv = document.getElementById('selectedSection');
+    
+    tbodyLTC.innerHTML = '';
+    tbodySelected.innerHTML = '';
+
+    const registeredMAMH = new Set();
+    const registeredLTCs = [];
+
+    // 1. Phân loại
+    currentList.forEach(ltc => {
+        if (ltc.DA_DANGKY == 1) {
+            registeredMAMH.add(ltc.MAMH);
+            registeredLTCs.push(ltc);
+        }
+    });
+
+    // 2. Render bảng "Đã chọn"
+    if (registeredLTCs.length > 0) {
+        selectedDiv.style.display = 'block';
+        registeredLTCs.forEach(ltc => {
+            const extraAttr = ltc.IS_FROZEN ? 'disabled style="filter:grayscale(1); opacity:0.4; cursor:not-allowed;" title="Lớp thuộc niên khóa cũ"' : '';
+            tbodySelected.innerHTML += `
+                <tr class="${ltc.IS_FROZEN ? 'frozen-row' : ''}">
+                    <td><b>${ltc.MALTC}</b> ${ltc.IS_FROZEN ? '<span class="frozen-badge">🔒</span>' : ''}</td>
+                    <td>${ltc.TENMH} <span class="badge badge-muted">${ltc.MAMH}</span></td>
+                    <td>${ltc.NHOM}</td>
+                    <td>${ltc.TENGV}</td>
+                    <td>
+                        <button class="btn btn-success btn-sm" onclick="xulyHuy(${ltc.MALTC}, '${ltc.TENMH}')" ${extraAttr}>Hủy đăng ký</button>
+                    </td>
+                </tr>`;
+        });
+    } else {
+        selectedDiv.style.display = 'none';
+    }
+
+    // 3. Render bảng "Tìm kiếm"
+    if (currentList.length === 0) {
+        tbodyLTC.innerHTML = '<tr><td colspan="7" class="empty-state">Không có lớp tín chỉ nào</td></tr>';
+    } else {
+        currentList.forEach(ltc => {
+            const isRegisteredThisClass = ltc.DA_DANGKY == 1;
+            const isRegisteredOtherClassSameSubject = !isRegisteredThisClass && registeredMAMH.has(ltc.MAMH);
+            const extraAttr = ltc.IS_FROZEN ? 'disabled style="filter:grayscale(1); opacity:0.4; cursor:not-allowed;" title="Lớp thuộc niên khóa cũ"' : '';
+            
+            let btnHtml = '';
+            if (isRegisteredThisClass) {
+                btnHtml = `<button class="btn btn-success btn-sm" onclick="xulyHuy(${ltc.MALTC}, '${ltc.TENMH}')" ${extraAttr}>Hủy đăng ký</button>`;
+            } else if (isRegisteredOtherClassSameSubject) {
+                btnHtml = `<button class="btn btn-disabled btn-sm" title="Bạn đã đăng ký một lớp khác cho môn học này" ${extraAttr}>Đăng ký</button>`;
+            } else {
+                btnHtml = `<button class="btn btn-primary btn-sm" onclick="xulyDangKy(${ltc.MALTC}, '${ltc.TENMH}')" ${extraAttr}>Đăng ký</button>`;
+            }
+
+            tbodyLTC.innerHTML += `
+                <tr class="${ltc.IS_FROZEN ? 'frozen-row' : ''}">
+                    <td>${ltc.MALTC} ${ltc.IS_FROZEN ? '<span class="frozen-badge">🔒</span>' : ''}</td>
+                    <td>${ltc.TENMH} <span class="badge badge-muted">${ltc.MAMH}</span></td>
+                    <td>${ltc.NHOM}</td>
+                    <td>${ltc.TENGV}</td>
+                    <td>${ltc.TENKHOA}</td>
+                    <td>${ltc.SOSV_DANGKY} / ${ltc.SOSVTOITHIEU}</td>
+                    <td id="cell_${ltc.MALTC}">${btnHtml}</td>
+                </tr>`;
+        });
+    }
+}
+
+async function xulyDangKy(maltc, tenmh) {
+    if (!confirm(`Bạn có chắc chắn muốn đăng ký môn học [${tenmh}]?`)) return;
+    
+    // Disable tất cả nút trong lúc chờ
+    document.querySelectorAll('.btn').forEach(b => b.disabled = true);
+    
+    try {
+        const res = await fetch('/dangky/dangky', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({maltc, masv: MASV})
+        });
+        const data = await res.json();
+        if (data.ok) {
+            alert('Đăng ký thành công!');
+            timLop(); // Refresh lại danh sách
+        } else {
+            alert('Lỗi: ' + data.msg);
+            document.querySelectorAll('.btn').forEach(b => b.disabled = false);
+        }
+    } catch(e) {
+        alert('Lỗi kết nối máy chủ');
+        document.querySelectorAll('.btn').forEach(b => b.disabled = false);
+    }
+}
+
+async function xulyHuy(maltc, tenmh) {
+    if (!confirm(`XÁC NHẬN: Bạn muốn hủy đăng ký lớp [${tenmh}]?\nHành động này không thể hoàn tác.`)) return;
+    
+    document.querySelectorAll('.btn').forEach(b => b.disabled = true);
+    
+    try {
+        const res = await fetch('/dangky/huy', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({maltc, masv: MASV})
+        });
+        const data = await res.json();
+        if (data.ok) {
+            alert('Đã hủy đăng ký thành công.');
+            timLop(); 
+        } else {
+            alert('Lỗi: ' + data.msg);
+            document.querySelectorAll('.btn').forEach(b => b.disabled = false);
+        }
+    } catch(e) {
+        alert('Lỗi kết nối máy chủ');
+        document.querySelectorAll('.btn').forEach(b => b.disabled = false);
+    }
+}
+</script>
+</body>
+</html>

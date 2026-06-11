@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Nhập Điểm</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root{--primary:#c01920;--primary-dark:#8c1015;--primary-light:#2d1314;--bg-body:#0a0a0a;--bg-card:#1a1a1a;--bg-input:#111;--text-main:#fff;--text-muted:#a1a1aa;--border:#3f3f46;--radius:12px;}
+        *{box-sizing:border-box;margin:0;padding:0;}
+        body{font-family:'Inter',sans-serif;background:radial-gradient(circle at top,var(--bg-card),var(--bg-body) 70%);color:var(--text-main);min-height:100vh;padding:1.5rem;}
+        .container{max-width:100%;margin:0 auto;}
+        .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;padding-bottom:1rem;border-bottom:1px solid var(--border);}
+        .btn{padding:.45rem 1rem;border-radius:8px;border:none;font-weight:600;font-family:inherit;cursor:pointer;font-size:.85rem;transition:opacity .2s;}
+        .btn:hover{opacity:.85;}
+        .btn-primary{background:linear-gradient(to right,var(--primary),var(--primary-dark));color:#fff;}
+        .btn-outline{background:transparent;border:1px solid var(--border);color:var(--text-main);}
+        .btn-success{background:#166534;color:#fff;}
+        .card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:1.25rem;margin-bottom:1.25rem;}
+        .filter-bar{display:flex;gap:.75rem;flex-wrap:wrap;align-items:flex-end;}
+        .fg{display:flex;flex-direction:column;gap:.3rem;}
+        .fg label{font-size:.72rem;font-weight:600;color:#f87171;text-transform:uppercase;}
+        .fg input,.fg select{background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:.45rem .75rem;color:var(--text-main);font-family:inherit;font-size:.875rem;min-width:140px;}
+        .fg input:focus,.fg select:focus{outline:none;border-color:var(--primary);}
+        select option{background:#1a1a1a;}
+        table{width:100%;border-collapse:collapse;font-size:.83rem;}
+        th{text-align:left;padding:.5rem .6rem;color:var(--text-muted);border-bottom:1px solid var(--border);font-weight:600;font-size:.7rem;text-transform:uppercase;}
+        td{padding:.4rem .5rem;border-bottom:1px solid #2a2a2a;}
+        .diem-input{background:var(--bg-input);border:1px solid var(--border);border-radius:6px;padding:.35rem .5rem;color:var(--text-main);font-family:inherit;font-size:.83rem;width:70px;text-align:center;}
+        .diem-input:focus{outline:none;border-color:var(--primary);}
+        .diem-hm{background:transparent;border:none;color:#86efac;font-weight:600;font-size:.83rem;width:60px;text-align:center;}
+        .alert{padding:.65rem 1rem;border-radius:8px;margin-bottom:1rem;font-size:.85rem;}
+        .alert-success{background:rgba(34,197,94,.15);border:1px solid rgba(34,197,94,.3);color:#86efac;}
+        .alert-error{background:rgba(220,38,38,.15);border:1px solid rgba(220,38,38,.3);color:#fca5a5;}
+        .back-link{color:#f87171;text-decoration:none;font-size:.85rem;font-weight:600;}
+        #diemTable{display:none;}
+        .info-bar{display:flex;gap:1.5rem;flex-wrap:wrap;margin-bottom:1rem;font-size:.82rem;color:var(--text-muted);}
+        .info-bar span b{color:var(--text-main);}
+        .spinner{display:none;color:var(--text-muted);font-size:.85rem;padding:.5rem 0;}
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>📝 Nhập Điểm</h1>
+        <a href="/dashboard" class="back-link">← Về Dashboard</a>
+    </div>
+
+    {% with messages = get_flashed_messages() %}
+    {% if messages %}{% for m in messages %}
+    <div class="alert {% if 'thành công' in m.lower() %}alert-success{% else %}alert-error{% endif %}">{{ m }}</div>
+    {% endfor %}{% endif %}{% endwith %}
+
+    <!-- Bộ lọc -->
+    <div class="card">
+        <div class="filter-bar">
+            <div class="fg">
+                <label>Niên khóa</label>
+                <input list="nk_list" id="fNK" placeholder="Ví dụ: 2025-2026" onchange="if(!this.value) this.value=this.dataset.old; else {this.dataset.old=this.value; batDau();}" onmousedown="this.dataset.old=this.value; this.value='';" onblur="if(!this.value) this.value=this.dataset.old;" style="margin-top:.1rem;min-width:140px;">
+                <datalist id="nk_list">
+                    {% for nk in nienkhoa_list %}
+                    <option value="{{ nk }}">
+                    {% endfor %}
+                </datalist>
+            </div>
+            <div class="fg"><label>Học kỳ</label>
+                <select id="fHK" onchange="batDau()">
+                    <option value="1">Học kỳ 1</option>
+                    <option value="2">Học kỳ 2</option>
+                    <option value="3">Học kỳ 3</option>
+                </select>
+            </div>
+            <div class="fg"><label>Môn học</label>
+                <select id="fMAMH" onchange="batDau()">
+                    {% for mh in monhoc_list %}
+                    <option value="{{ mh.MAMH }}">{{ mh.TENMH }} ({{ mh.MAMH }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="fg"><label>Nhóm</label><input type="number" id="fNHOM" value="1" min="1" style="min-width:80px;" onchange="batDau()"></div>
+            <button class="btn btn-outline" onclick="openHistory()" style="align-self:flex-end;">🕓 Lịch sử</button>
+        </div>
+        <div class="spinner" id="spinner">⏳ Đang tải danh sách sinh viên...</div>
+        <div id="errMsg" style="color:#fca5a5;font-size:.83rem;margin-top:.5rem;"></div>
+    </div>
+
+    <!-- Bảng nhập điểm -->
+    <div class="card" id="diemTable">
+        <div class="info-bar" id="infoBar"></div>
+        <form id="frmDiem" method="POST" action="/nhapdiem/ghidiem">
+            <input type="hidden" name="maltc" id="h_maltc">
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width:110px;">Mã SV</th>
+                        <th>Họ tên</th>
+                        <th style="width:80px;">Điểm CC</th>
+                        <th style="width:80px;">Điểm GK</th>
+                        <th style="width:80px;">Điểm CK</th>
+                        <th style="width:80px;">Điểm HM</th>
+                    </tr>
+                </thead>
+                <tbody id="tbodyDiem"></tbody>
+            </table>
+            <div style="margin-top:1rem;display:flex;gap:.75rem;align-items:center;">
+                <button type="button" class="btn btn-success" id="btnGhiDiem" onclick="ghiDiem()">💾 Ghi điểm</button>
+                <span id="ghiMsg" style="font-size:.82rem;font-weight:600;"></span>
+            </div>
+        </form>
+    </div>
+</div>
+<style>
+    /* Bổ sung css cho disable btnGhiDiem */
+    #btnGhiDiem:disabled { filter: grayscale(1); opacity: 0.4; cursor: not-allowed; pointer-events: none; }
+    .error-border { border: 2px solid #fca5a5 !important; }
+</style>
+<script src="/static/history.js"></script>
+<script>
+let currentMALTC = null;
+
+async function batDau() {
+    const nk = document.getElementById('fNK').value.trim();
+    const hk = document.getElementById('fHK').value;
+    const mamh = document.getElementById('fMAMH').value;
+    const nhom = document.getElementById('fNHOM').value;
+    const errEl = document.getElementById('errMsg');
+    errEl.textContent = '';
+
+    if (!nk) { errEl.textContent = 'Vui lòng nhập niên khóa.'; return; }
+
+    document.getElementById('spinner').style.display = 'block';
+    document.getElementById('diemTable').style.display = 'none';
+
+    try {
+        const res = await fetch('/nhapdiem/batdau', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({nienkhoa: nk, hocky: hk, mamh, nhom})
+        });
+        const data = await res.json();
+        document.getElementById('spinner').style.display = 'none';
+
+        if (!data.ok) { errEl.textContent = data.msg || 'Không tìm thấy lớp tín chỉ.'; return; }
+
+        currentMALTC = data.maltc;
+        document.getElementById('h_maltc').value = currentMALTC;
+
+        // Info bar
+        document.getElementById('infoBar').innerHTML =
+            `<span>Lớp TC: <b>#${data.maltc}</b></span>` +
+            `<span>Môn: <b>${data.tenmh}</b></span>` +
+            `<span>Nhóm: <b>${data.nhom}</b></span>` +
+            `<span>Niên khóa: <b>${data.nienkhoa} — HK${data.hocky}</b></span>` +
+            `<span>Số SV: <b>${data.sv_list.length}</b></span>`;
+
+        // Build table rows
+        const tbody = document.getElementById('tbodyDiem');
+        tbody.innerHTML = '';
+        data.sv_list.forEach((sv, i) => {
+            const cc = sv.DIEM_CC != null ? sv.DIEM_CC : '';
+            const gk = sv.DIEM_GK != null ? sv.DIEM_GK : '';
+            const ck = sv.DIEM_CK != null ? sv.DIEM_CK : '';
+            const hm = calcHM(cc, gk, ck);
+            tbody.innerHTML += `
+            <tr>
+                <td><input type="hidden" name="masv[]" value="${sv.MASV}">${sv.MASV}</td>
+                <td>${sv.HOTEN}</td>
+                <td><input class="diem-input" type="number" name="diem_cc[]" value="${cc}" min="0" max="10" step="0.1" oninput="tinhHM(this)"></td>
+                <td><input class="diem-input" type="number" name="diem_gk[]" value="${gk}" min="0" max="10" step="0.1" oninput="tinhHM(this)"></td>
+                <td><input class="diem-input" type="number" name="diem_ck[]" value="${ck}" min="0" max="10" step="0.1" oninput="tinhHM(this)"></td>
+                <td><input class="diem-hm" type="text" readonly value="${hm}" tabindex="-1"></td>
+            </tr>`;
+        });
+
+        document.getElementById('diemTable').style.display = 'block';
+        document.getElementById('ghiMsg').textContent = '';
+    } catch(e) {
+        document.getElementById('spinner').style.display = 'none';
+        errEl.textContent = 'Lỗi kết nối máy chủ.';
+    }
+}
+
+function calcHM(cc, gk, ck) {
+    const c = parseFloat(cc), g = parseFloat(gk), k = parseFloat(ck);
+    if (isNaN(c) && isNaN(g) && isNaN(k)) return '';
+    const cv = isNaN(c) ? 0 : c, gv = isNaN(g) ? 0 : g, kv = isNaN(k) ? 0 : k;
+    return (cv * 0.1 + gv * 0.3 + kv * 0.6).toFixed(2);
+}
+
+function tinhHM(el) {
+    const row = el.closest('tr');
+    const inputs = row.querySelectorAll('.diem-input');
+    
+    // Quét Validate toàn cục
+    let hasError = false;
+    document.querySelectorAll('.diem-input').forEach(inp => {
+        if (inp.value.trim() !== '') {
+            const v = parseFloat(inp.value);
+            if (isNaN(v) || v < 0 || v > 10) {
+                inp.classList.add('error-border');
+                hasError = true;
+            } else {
+                inp.classList.remove('error-border');
+            }
+        } else {
+            inp.classList.remove('error-border');
+        }
+    });
+
+    const msg = document.getElementById('ghiMsg');
+    const btn = document.getElementById('btnGhiDiem');
+    if (hasError) {
+        msg.textContent = '❌ Điểm thành phần từ 0 -> 10. Vui lòng sửa lỗi viền đỏ.';
+        msg.style.color = '#fca5a5';
+        btn.disabled = true;
+    } else {
+        msg.textContent = '';
+        btn.disabled = false;
+        const hm = calcHM(inputs[0].value, inputs[1].value, inputs[2].value);
+        row.querySelector('.diem-hm').value = hm;
+    }
+}
+
+function ghiDiem() {
+    if (!currentMALTC) return;
+    const btn = document.getElementById('btnGhiDiem');
+    if (btn.disabled) return;
+    const msg = document.getElementById('ghiMsg');
+    msg.style.color = '#a1a1aa';
+    msg.textContent = 'Đang lưu...';
+    document.getElementById('frmDiem').submit();
+}
+</script>
+</body>
+</html>

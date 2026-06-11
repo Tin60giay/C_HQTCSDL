@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Đăng nhập - Quản lý Điểm Sinh Viên HTC</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-body: #0a0a0a;
+            --bg-card: #1a1a1a;
+            --bg-input: #000000;
+            --primary-red: #c01920;
+            /* PTIT Red */
+            --primary-dark: #8c1015;
+            /* Gradient darker red */
+            --tab-inactive: #2d2d2d;
+            --text-label: #f87171;
+            /* red-400 */
+            --text-white: #ffffff;
+            --text-muted: #a1a1aa;
+            --border-color: #3f3f46;
+            --radius: 12px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: radial-gradient(circle at top, var(--bg-card), var(--bg-body) 70%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            color: var(--text-white);
+        }
+
+        .login-container {
+            width: 100%;
+            max-width: 420px;
+            padding: 1rem;
+            animation: fadeIn 0.4s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: scale(0.98);
+            }
+
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        .login-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .login-header .logo {
+            width: 100px;
+            height: auto;
+            margin-bottom: 0.75rem;
+            filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.5));
+        }
+
+        .login-header h2 {
+            font-size: 1.4rem;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            color: var(--text-white);
+        }
+
+        .login-header p {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            margin-top: 4px;
+        }
+
+        /* Role Tabs */
+        .role-tabs {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 1.5rem;
+        }
+
+        .tab-btn {
+            padding: 0.6rem 2.5rem;
+            border-radius: 8px;
+            background: var(--tab-inactive);
+            color: #94a3b8;
+            font-size: 0.95rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .tab-btn.active {
+            background: var(--primary-red);
+            color: var(--text-white);
+        }
+
+        .tab-btn input[type="radio"] {
+            display: none;
+        }
+
+        /* Form Card */
+        .form-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius);
+            padding: 2.5rem 2.5rem 2rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+
+        .form-group {
+            margin-bottom: 1.25rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: var(--text-label);
+            font-size: 0.8rem;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 0.8rem 1rem;
+            background: var(--bg-input);
+            border: 1px solid transparent;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-family: inherit;
+            color: var(--text-white);
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .form-group input:focus {
+            border-color: var(--border-color);
+            box-shadow: inset 0 0 0 1px var(--border-color);
+        }
+
+        .form-group input::placeholder {
+            color: #52525b;
+            font-style: italic;
+            opacity: 0.8;
+        }
+
+        button[type="submit"] {
+            width: 100%;
+            padding: 0.9rem;
+            background: linear-gradient(to right, var(--primary-red), var(--primary-dark));
+            border: none;
+            color: white;
+            font-size: 1rem;
+            font-weight: 700;
+            font-family: inherit;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: transform 0.2s, opacity 0.2s;
+            margin-top: 1rem;
+        }
+
+        button[type="submit"]:hover {
+            opacity: 0.95;
+            transform: translateY(-1px);
+        }
+
+        button[type="submit"]:active {
+            transform: translateY(0);
+        }
+
+        .alert {
+            background: rgba(220, 38, 38, 0.2);
+            color: #fca5a5;
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+            text-align: center;
+            font-size: 0.85rem;
+            border: 1px solid rgba(220, 38, 38, 0.3);
+            animation: shake 0.3s ease-in-out;
+        }
+
+        @keyframes shake {
+
+            0%,
+            100% {
+                transform: translateX(0);
+            }
+
+            25% {
+                transform: translateX(-4px);
+            }
+
+            75% {
+                transform: translateX(4px);
+            }
+        }
+
+        .footer-note {
+            text-align: center;
+            margin-top: 2rem;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="login-container">
+        <div class="login-header">
+            <img class="logo" src="{{ url_for('static', filename='img/ptit-logo.png') }}" alt="PTIT Logo">
+            <h2>Hệ Thống QLDSV</h2>
+            <p>Quản lý Điểm Sinh Viên - Hệ Tín Chỉ</p>
+        </div>
+
+        {% with messages = get_flashed_messages() %}
+        {% if messages %}
+        {% for message in messages %}
+        <div class="alert">{{ message }}</div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+
+        <form method="POST" action="/">
+            <div class="role-tabs">
+                <label class="tab-btn active" id="tabGV">
+                    <input type="radio" name="role" value="GV" checked onclick="changeLabel()"> Giảng Viên
+                </label>
+                <label class="tab-btn" id="tabSV">
+                    <input type="radio" name="role" value="SV" onclick="changeLabel()"> Sinh Viên
+                </label>
+            </div>
+
+            <div class="form-card">
+                <div class="form-group">
+                    <label id="lblUsername">LOGIN</label>
+                    <input type="text" id="inputUsername" name="username" required>
+                </div>
+
+                <div class="form-group">
+                    <label>PASSWORD</label>
+                    <input type="password" name="password" required placeholder="123456">
+                </div>
+
+                <button type="submit">Đăng nhập</button>
+            </div>
+        </form>
+
+    </div>
+
+    <script>
+        function changeLabel() {
+            var isSV = document.querySelector('input[name="role"][value="SV"]').checked;
+
+            document.getElementById('tabGV').classList.toggle('active', !isSV);
+            document.getElementById('tabSV').classList.toggle('active', isSV);
+
+            var label = document.getElementById("lblUsername");
+            var input = document.getElementById("inputUsername");
+
+            if (isSV) {
+                label.innerText = "MÃ SV";
+                input.placeholder = "N23DCCI079";
+            } else {
+                label.innerText = "LOGIN";
+                input.placeholder = "GV01";
+            }
+        }
+
+        // Initialize state on load
+        window.onload = function () {
+            changeLabel();
+        };
+    </script>
+
+</body>
+
+</html>

@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Bảng Điều Khiển - Màn Hình Chính</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #c01920;      /* PTIT Red */
+            --primary-dark: #8c1015; /* Darker PTIT Red */
+            --primary-light: #2d1314;
+            --bg-body: #0a0a0a;
+            --bg-card: #1a1a1a;
+            --text-main: #ffffff;
+            --text-muted: #a1a1aa;
+            --border-color: #3f3f46;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: radial-gradient(circle at top, var(--bg-card), var(--bg-body) 70%);
+            padding: 2rem;
+            color: var(--text-main);
+            min-height: 100vh;
+        }
+
+        .container {
+            background: var(--bg-card);
+            padding: 2.5rem;
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            max-width: 100%;
+            margin: 0 auto;
+            animation: fadeIn 0.4s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        h1 {
+            color: var(--text-main);
+            font-size: 1.4rem;
+        }
+
+        .logout {
+            color: #f87171;
+            text-decoration: none;
+            font-weight: 600;
+            padding: 8px 16px;
+            border-radius: 8px;
+            transition: background 0.2s, color 0.2s;
+            font-size: 0.9rem;
+            border: 1px solid transparent;
+        }
+
+        .logout:hover {
+            background: rgba(220, 38, 38, 0.1);
+            color: #ef4444;
+            border-color: rgba(220, 38, 38, 0.3);
+        }
+
+        .info-card {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: white;
+            padding: 1.5rem 2rem;
+            border-radius: 14px;
+            margin-bottom: 2.5rem;
+            box-shadow: 0 10px 15px -3px rgba(192, 25, 32, 0.3);
+        }
+
+        .info-card h2 {
+            margin-top: 0;
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+
+        .info-card .info-details {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 2rem;
+            margin-top: 1rem;
+        }
+
+        .info-card .info-item {
+            opacity: 0.95;
+            font-size: 0.95rem;
+        }
+        .info-card .info-item span {
+            opacity: 0.8;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            display: inline-block;
+            margin-bottom: 4px;
+        }
+
+        h3 {
+            color: var(--text-main);
+            margin-bottom: 1.25rem;
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+
+        .menu-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.25rem;
+        }
+
+        .menu-item {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 110px;
+            background: #111111;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 0.95rem;
+            color: var(--text-main);
+            text-decoration: none;
+            transition: all 0.25s ease;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .menu-item:hover {
+            border-color: var(--primary);
+            color: #ffffff;
+            background: var(--primary-light);
+            transform: translateY(-2px);
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.3), 0 8px 15px rgba(0,0,0,0.4);
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <div class="header">
+            <h1>📚 Phần Mềm Quản Lý Điểm Tín Chỉ</h1>
+            <a href="/logout" class="logout">🚪 Đăng Xuất</a>
+        </div>
+
+        <div class="info-card">
+            <h2>👋 Xin chào, <strong>{{ hoten }}</strong></h2>
+            <div class="info-details">
+                <div class="info-item">
+                    <span>Vai trò</span><br>
+                    <strong>
+                        {% if group == 'PGV' %}Phòng Giáo Vụ
+                        {% elif group == 'KHOA' %}Giảng Viên Khoa
+                        {% else %}Sinh Viên
+                        {% endif %}
+                    </strong>
+                </div>
+                <div class="info-item">
+                    <span>Khoa</span><br>
+                    <strong>{{ tenkhoa if tenkhoa else group }}</strong>
+                </div>
+            </div>
+        </div>
+
+        <div>
+            <h3>Menu Chức Năng</h3>
+            <div class="menu-grid">
+                {% if group == 'PGV' %}
+                <a href="/khoa" class="menu-item">🏛️ Quản lý Khoa</a>
+                <a href="/lop" class="menu-item">📋 Quản lý Lớp Cử Nhân</a>
+                <a href="/giangvien" class="menu-item">👨‍🏫 Quản lý Giảng Viên</a>
+                <a href="/sinhvien" class="menu-item">👨‍🎓 Quản lý Sinh Viên</a>
+                <a href="/monhoc" class="menu-item">📖 Quản lý Môn Học</a>
+                <a href="/loptinchi" class="menu-item">🏫 Mở Lớp Tín Chỉ</a>
+                <a href="/nhapdiem" class="menu-item">✏️ Nhập Điểm</a>
+                <a href="#" class="menu-item">📊 Báo Cáo Thống Kê</a>
+                <a href="#" class="menu-item">🔑 Tạo Tài Khoản</a>
+                {% elif group == 'KHOA' %}
+                <a href="/loptinchi" class="menu-item">👁️ Xem Lớp Tín Chỉ</a>
+                <a href="/nhapdiem" class="menu-item">✏️ Nhập Điểm</a>
+                <a href="#" class="menu-item">📊 Báo Cáo Thống Kê</a>
+                {% else %}
+                <a href="/dangky" class="menu-item">📝 Đăng ký Lớp Tín Chỉ</a>
+                <a href="/phieu_diem" class="menu-item">📄 Bảng Điểm Cá Nhân</a>
+                <a href="#" class="menu-item">💰 Thông Tin Học Phí</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+</body>
+
+</html>

@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "statusMessage": "Ghi nhật ký thay đổi...",
+            "command": "jq -r '.tool_input.file_path // empty' | { read -r f; echo \"$f\" | grep -qiE 'A_HQTCSDL.C_HQTCSDL' && echo \"$f\" | grep -qviE 'CHANGELOG_|DOCUMENTATION\\.md|PLAN_' && ts=$(date +%Y%m%d) && log=\"/f/A_HQTCSDL/C_HQTCSDL/changelogs/CHANGELOG_${ts}.md\" && mkdir -p /f/A_HQTCSDL/C_HQTCSDL/changelogs && { [ -f \"$log\" ] || printf '# Changelog %s\\n\\n' \"$(date '+%Y-%m-%d')\" > \"$log\"; } && printf '- **%s** — `%s`\\n' \"$(date '+%H:%M:%S')\" \"$f\" >> \"$log\"; } 2>/dev/null || true"
+          }
+        ]
+      }
+    ]
+  }
+}

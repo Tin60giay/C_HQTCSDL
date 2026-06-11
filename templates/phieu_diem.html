@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Phiếu Điểm</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root{--primary:#c01920;--primary-dark:#8c1015;--bg-body:#0a0a0a;--bg-card:#1a1a1a;--text-main:#fff;--text-muted:#a1a1aa;--border:#3f3f46;--radius:12px;}
+        *{box-sizing:border-box;margin:0;padding:0;}
+        body{font-family:'Inter',sans-serif;background:radial-gradient(circle at top,var(--bg-card),var(--bg-body) 70%);color:var(--text-main);min-height:100vh;padding:1.5rem;}
+        .container{max-width:100%;margin:0 auto;}
+        .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;padding-bottom:1rem;border-bottom:1px solid var(--border);}
+        .card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:1.25rem;margin-bottom:1.25rem;}
+        .sv-info{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:.75rem;margin-bottom:1.25rem;}
+        .info-item{display:flex;flex-direction:column;gap:.2rem;}
+        .info-item .lbl{font-size:.68rem;font-weight:600;color:#f87171;text-transform:uppercase;}
+        .info-item .val{font-size:.9rem;font-weight:600;}
+        table{width:100%;border-collapse:collapse;font-size:.85rem;}
+        th{text-align:left;padding:.55rem .75rem;color:var(--text-muted);border-bottom:1px solid var(--border);font-weight:600;font-size:.72rem;text-transform:uppercase;}
+        td{padding:.55rem .75rem;border-bottom:1px solid #2a2a2a;}
+        .diem-hm{font-weight:700;}
+        .diem-hm.pass{color:#86efac;}
+        .diem-hm.fail{color:#fca5a5;}
+        .badge-muted{background:#2a2a2a;color:var(--text-muted);padding:.15rem .4rem;border-radius:4px;font-size:.7rem;}
+        .back-link{color:#f87171;text-decoration:none;font-size:.85rem;font-weight:600;}
+        .empty-msg{text-align:center;color:var(--text-muted);padding:2.5rem;font-size:.9rem;}
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>📊 Phiếu Điểm</h1>
+        <a href="/dashboard" class="back-link">← Về Dashboard</a>
+    </div>
+
+    <div class="card">
+        <div class="sv-info">
+            <div class="info-item"><span class="lbl">Mã sinh viên</span><span class="val">{{ sv.MASV }}</span></div>
+            <div class="info-item"><span class="lbl">Họ tên</span><span class="val">{{ sv.HOTEN }}</span></div>
+            <div class="info-item"><span class="lbl">Lớp</span><span class="val">{{ sv.MALOP }}</span></div>
+            <div class="info-item"><span class="lbl">Ngày sinh</span><span class="val">{{ sv.NGAYSINH }}</span></div>
+        </div>
+
+        {% if phieu_diem %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Môn học</th><th>Niên khóa</th><th>HK</th><th>Nhóm</th>
+                    <th style="text-align:center;">CC</th>
+                    <th style="text-align:center;">GK</th>
+                    <th style="text-align:center;">CK</th>
+                    <th style="text-align:center;">HM</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for r in phieu_diem %}
+            <tr>
+                <td>{{ r.TENMH }} <span class="badge-muted">{{ r.MAMH }}</span></td>
+                <td>{{ r.NIENKHOA }}</td>
+                <td>{{ r.HOCKY }}</td>
+                <td>{{ r.NHOM }}</td>
+                <td style="text-align:center;">{{ r.DIEM_CC if r.DIEM_CC is not none else '—' }}</td>
+                <td style="text-align:center;">{{ r.DIEM_GK if r.DIEM_GK is not none else '—' }}</td>
+                <td style="text-align:center;">{{ r.DIEM_CK if r.DIEM_CK is not none else '—' }}</td>
+                <td style="text-align:center;">
+                    {% if r.DIEM_HM is not none %}
+                    <span class="diem-hm {% if r.DIEM_HM >= 5 %}pass{% else %}fail{% endif %}">
+                        {{ "%.2f"|format(r.DIEM_HM) }}
+                    </span>
+                    {% else %}—{% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="empty-msg">Chưa có điểm nào được ghi nhận.</div>
+        {% endif %}
+    </div>
+</div>
+</body>
+</html>
