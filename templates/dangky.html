@@ -55,6 +55,13 @@
     <div class="alert {% if 'thành công' in m.lower() %}alert-success{% else %}alert-error{% endif %}">{{ m }}</div>
     {% endfor %}{% endif %}{% endwith %}
 
+    {% if quahan %}
+    <div class="alert alert-error" style="background:#3f1d1d;border:1px solid #c01920;color:#fca5a5;">
+        <strong>⚠️ Tài khoản của bạn đã quá hạn 7 năm kể từ khóa học.</strong><br>
+        Bạn chỉ có thể xem <a href="/phieu_diem" style="color:#fecaca;text-decoration:underline;">bảng điểm cá nhân</a>. Mọi chức năng khác đã bị vô hiệu hóa.
+    </div>
+    {% endif %}
+
     <!-- Thông tin SV (tự động từ session) -->
     <div class="card">
         <div class="sv-info">
@@ -130,6 +137,7 @@
 <script src="/static/history.js"></script>
 <script>
 const MASV = "{{ masv }}";
+const QUAHAN = {{ 'true' if quahan else 'false' }};
 let _autoTimer = null;
 let currentList = [];
 
@@ -192,15 +200,17 @@ function renderAll() {
         selectedDiv.style.display = 'block';
         registeredLTCs.forEach(ltc => {
             const extraAttr = ltc.IS_FROZEN ? 'disabled style="filter:grayscale(1); opacity:0.4; cursor:not-allowed;" title="Lớp thuộc niên khóa cũ"' : '';
+            // [QUA_HAN_SP_2026] Nếu quá hạn → làm mờ nút hủy
+            const cancelBtn = QUAHAN
+                ? `<button class="btn btn-disabled btn-sm" disabled title="Bạn đã quá hạn 7 năm kể từ khóa học, không thể hủy đăng ký">Hủy đăng ký</button>`
+                : `<button class="btn btn-success btn-sm" onclick="xulyHuy(${ltc.MALTC}, '${ltc.TENMH}')" ${extraAttr}>Hủy đăng ký</button>`;
             tbodySelected.innerHTML += `
                 <tr class="${ltc.IS_FROZEN ? 'frozen-row' : ''}">
                     <td><b>${ltc.MALTC}</b> ${ltc.IS_FROZEN ? '<span class="frozen-badge">🔒</span>' : ''}</td>
                     <td>${ltc.TENMH} <span class="badge badge-muted">${ltc.MAMH}</span></td>
                     <td>${ltc.NHOM}</td>
                     <td>${ltc.TENGV}</td>
-                    <td>
-                        <button class="btn btn-success btn-sm" onclick="xulyHuy(${ltc.MALTC}, '${ltc.TENMH}')" ${extraAttr}>Hủy đăng ký</button>
-                    </td>
+                    <td>${cancelBtn}</td>
                 </tr>`;
         });
     } else {
@@ -217,7 +227,15 @@ function renderAll() {
             const extraAttr = ltc.IS_FROZEN ? 'disabled style="filter:grayscale(1); opacity:0.4; cursor:not-allowed;" title="Lớp thuộc niên khóa cũ"' : '';
             
             let btnHtml = '';
-            if (isRegisteredThisClass) {
+            // [QUA_HAN_SP_2026] Nếu SV quá hạn, tất cả nút bị làm mờ
+            if (QUAHAN) {
+                const titleAttr = `title="Bạn đã quá hạn 7 năm kể từ khóa học, không thể đăng ký"`;
+                if (isRegisteredThisClass) {
+                    btnHtml = `<button class="btn btn-disabled btn-sm" disabled ${titleAttr}>Hủy đăng ký</button>`;
+                } else {
+                    btnHtml = `<button class="btn btn-disabled btn-sm" disabled ${titleAttr}>Đăng ký</button>`;
+                }
+            } else if (isRegisteredThisClass) {
                 btnHtml = `<button class="btn btn-success btn-sm" onclick="xulyHuy(${ltc.MALTC}, '${ltc.TENMH}')" ${extraAttr}>Hủy đăng ký</button>`;
             } else if (isRegisteredOtherClassSameSubject) {
                 btnHtml = `<button class="btn btn-disabled btn-sm" title="Bạn đã đăng ký một lớp khác cho môn học này" ${extraAttr}>Đăng ký</button>`;
@@ -240,6 +258,11 @@ function renderAll() {
 }
 
 async function xulyDangKy(maltc, tenmh) {
+    // [QUA_HAN_SP_2026] Nếu quá hạn → thông báo + chỉ cho xem bảng điểm
+    if (QUAHAN) {
+        alert('Bạn đã quá hạn 7 năm kể từ khóa học. Không thể đăng ký lớp tín chỉ. Vui lòng xem bảng điểm cá nhân.');
+        return;
+    }
     if (!confirm(`Bạn có chắc chắn muốn đăng ký môn học [${tenmh}]?`)) return;
     
     // Disable tất cả nút trong lúc chờ
@@ -266,6 +289,10 @@ async function xulyDangKy(maltc, tenmh) {
 }
 
 async function xulyHuy(maltc, tenmh) {
+    if (QUAHAN) {
+        alert('Bạn đã quá hạn 7 năm kể từ khóa học. Không thể hủy đăng ký.');
+        return;
+    }
     if (!confirm(`XÁC NHẬN: Bạn muốn hủy đăng ký lớp [${tenmh}]?\nHành động này không thể hoàn tác.`)) return;
     
     document.querySelectorAll('.btn').forEach(b => b.disabled = true);

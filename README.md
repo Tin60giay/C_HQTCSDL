@@ -77,8 +77,8 @@ Cơ chế phân quyền của hệ thống trải dài suốt dọc Backend tớ
 
 | Phân Vùng | Database (Tên Đăng Nhập) | Giao diện | Thuộc logic file nào | 
 |---|---|---|---|
-| **PGV (Giáo vụ)** | `GV01`, `GV05` | Toàn quyền thao tác trên mọi màn hình. | `app.py` (Mảng `PGV_LOGINS`) |
-| **KHOA (Khoa)** | `GV...` (Trừ GV thuộc PGV) | Chỉ xem, không được tạo lớp mới, được quyền lên điểm. | `app.py` (Cơ chế Role kiểm tra Login) |
+| **PGV (Giáo vụ)** | `GV01`, `GV02` | Toàn quyền thao tác trên mọi màn hình. | `app.py` (Lấy động từ Database Role `PGV`) |
+| **KHOA (Khoa)** | `GV03`, `GV04`, `GV05`, ... | Chỉ xem, không được tạo lớp mới, được quyền lên điểm. | `app.py` (Lấy động từ Database Role `KHOA`) |
 | **SV (Sinh viên)** | `sv` / (mật khẩu dùng chung: `123`) | Cấp độ tài khoản DB được thắt chặt. Xác thực tài khoản riêng rẽ dựa trên mã (Ví dụ `N15DCCN001`) qua Procedure. | `SP_DANGNHAP_SV` trong `setup_login.sql` |
 
 ---

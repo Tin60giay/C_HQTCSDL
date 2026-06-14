@@ -68,12 +68,28 @@ AS
 BEGIN
     SET NOCOUNT ON
 
+    -- [QUA_HAN_SP_2026] Tính cờ QUAHAN:
+    --   1 = sinh viên đã học quá 7 năm kể từ khóa học
+    --   0 = còn trong thời hạn
+    -- Công thức: YEAR(GETDATE()) - CAST(LEFT(LOP.KHOAHOC, 4) AS INT) > 7
+    DECLARE @KhoaHocNBD INT = NULL
+    DECLARE @QuaHan BIT = 0
+
+    SELECT @KhoaHocNBD = CAST(LEFT(L.KHOAHOC, 4) AS INT)
+    FROM SINHVIEN SV
+    INNER JOIN LOP L ON SV.MALOP = L.MALOP
+    WHERE SV.MASV = @MASV
+
+    IF @KhoaHocNBD IS NOT NULL AND (YEAR(GETDATE()) - @KhoaHocNBD) > 7
+        SET @QuaHan = 1
+
     SELECT 
         SV.MASV                                         AS USER_NAME,
         RTRIM(SV.HO) + N' ' + RTRIM(SV.TEN)            AS HOTEN,
         K.TENKHOA                                       AS TENGROUP,
         RTRIM(SV.MALOP)                                 AS MALOP,
-        RTRIM(L.TENLOP)                                 AS TENLOP
+        RTRIM(L.TENLOP)                                 AS TENLOP,
+        @QuaHan                                         AS QUAHAN
     FROM SINHVIEN SV
     INNER JOIN LOP  L ON SV.MALOP  = L.MALOP
     INNER JOIN KHOA K ON L.MAKHOA  = K.MAKHOA
@@ -321,6 +337,60 @@ BEGIN
         SELECT -1 AS KETQUA, N'Sinh viên chưa đăng ký lớp tín chỉ này' AS THONGBAO
         RETURN
     END
+
+    -- [QUA_HAN_SP_2026] Chặn giảng viên nhập điểm cho SV đã quá hạn
+    -- Công thức: năm bắt đầu NK của LTC > (năm bắt đầu KHOAHOC + 7)
+    DECLARE @KhoaHocNBD_ND INT = NULL
+    DECLARE @NamNK_ND INT = NULL
+
+    SELECT @KhoaHocNBD_ND = CAST(LEFT(L.KHOAHOC, 4) AS INT)
+    FROM SINHVIEN SV
+    INNER JOIN LOP L ON SV.MALOP = L.MALOP
+    WHERE SV.MASV = @MASV
+
+    SELECT @NamNK_ND = CAST(LEFT(LTC.NIENKHOA, 4) AS INT)
+    FROM LOPTINCHI LTC
+    WHERE LTC.MALTC = @MALTC
+
+    IF @KhoaHocNBD_ND IS NOT NULL AND @NamNK_ND IS NOT NULL AND @NamNK_ND > (@KhoaHocNBD_ND + 7)
+    BEGIN
+        SELECT -20 AS KETQUA, N'Sinh viên đã quá hạn (KHOAHOC + 7 năm), không thể nhập/sửa điểm' AS THONGBAO
+        RETURN
+    END
+
+    -- [VALIDATE_SP_2026] Điểm CC: INT, khoảng [0, 10]
+    IF @DIEM_CC IS NOT NULL AND (@DIEM_CC < 0 OR @DIEM_CC > 10)
+    BEGIN
+        SELECT -2 AS KETQUA, N'Điểm chuyên cần phải nằm trong khoảng [0, 10]' AS THONGBAO
+        RETURN
+    END
+
+    -- [VALIDATE_SP_2026] Điểm GK: FLOAT, khoảng [0, 10]
+    IF @DIEM_GK IS NOT NULL AND (@DIEM_GK < 0 OR @DIEM_GK > 10)
+    BEGIN
+        SELECT -3 AS KETQUA, N'Điểm giữa kỳ phải nằm trong khoảng [0, 10]' AS THONGBAO
+        RETURN
+    END
+    -- [VALIDATE_SP_2026] Điểm GK: phải là bội số của 0.5
+    IF @DIEM_GK IS NOT NULL AND ABS((@DIEM_GK * 2) - ROUND(@DIEM_GK * 2, 0)) > 0.0001
+    BEGIN
+        SELECT -4 AS KETQUA, N'Điểm giữa kỳ phải là bội số của 0.5' AS THONGBAO
+        RETURN
+    END
+
+    -- [VALIDATE_SP_2026] Điểm CK: FLOAT, khoảng [0, 10]
+    IF @DIEM_CK IS NOT NULL AND (@DIEM_CK < 0 OR @DIEM_CK > 10)
+    BEGIN
+        SELECT -5 AS KETQUA, N'Điểm cuối kỳ phải nằm trong khoảng [0, 10]' AS THONGBAO
+        RETURN
+    END
+    -- [VALIDATE_SP_2026] Điểm CK: phải là bội số của 0.5
+    IF @DIEM_CK IS NOT NULL AND ABS((@DIEM_CK * 2) - ROUND(@DIEM_CK * 2, 0)) > 0.0001
+    BEGIN
+        SELECT -6 AS KETQUA, N'Điểm cuối kỳ phải là bội số của 0.5' AS THONGBAO
+        RETURN
+    END
+
     UPDATE DANGKY
     SET DIEM_CC = @DIEM_CC,
         DIEM_GK = @DIEM_GK,
@@ -360,7 +430,36 @@ BEGIN
         RETURN
     END
 
-    -- 2. Kiểm tra trùng môn học trong cùng học kỳ/niên khóa
+    -- 2. [QUA_HAN_SP_2026] Chặn SV quá hạn (YEAR(GETDATE()) - năm bắt đầu KHOAHOC > 7)
+    DECLARE @KhoaHocNBD INT = NULL
+    DECLARE @NamNK INT = NULL
+    DECLARE @QuaHan BIT = 0
+
+    SELECT @KhoaHocNBD = CAST(LEFT(L.KHOAHOC, 4) AS INT)
+    FROM SINHVIEN SV
+    INNER JOIN LOP L ON SV.MALOP = L.MALOP
+    WHERE SV.MASV = @MASV
+
+    SET @NamNK = CAST(LEFT(@NK, 4) AS INT)
+
+    IF @KhoaHocNBD IS NOT NULL AND @NamNK > (@KhoaHocNBD + 7)
+        SET @QuaHan = 1
+
+    IF @QuaHan = 1
+    BEGIN
+        SELECT -20 AS KETQUA, N'Bạn đã quá thời hạn đăng ký (vượt quá KHOAHOC + 7 năm). Chỉ có thể xem điểm.' AS THONGBAO
+        RETURN
+    END
+
+    -- 3. [QUA_HAN_SP_2026] Chặn đăng ký LTC trong quá khứ (NK < NK hiện tại)
+    DECLARE @NamHienTai INT = YEAR(GETDATE())
+    IF @NamNK < @NamHienTai
+    BEGIN
+        SELECT -21 AS KETQUA, N'Không thể đăng ký lớp tín chỉ thuộc niên khóa trong quá khứ.' AS THONGBAO
+        RETURN
+    END
+
+    -- 4. Kiểm tra trùng môn học trong cùng học kỳ/niên khóa
     IF EXISTS (
         SELECT 1 FROM DANGKY DK
         JOIN LOPTINCHI LTC ON DK.MALTC = LTC.MALTC
@@ -406,6 +505,30 @@ CREATE PROCEDURE SP_HUY_DANGKY
 AS
 BEGIN
     SET NOCOUNT ON
+    
+    -- [QUA_HAN_SP_2026] Chặn hủy nếu SV đã quá hạn
+    DECLARE @KhoaHocNBD INT = NULL
+    DECLARE @NamNK INT = NULL
+    DECLARE @QuaHan BIT = 0
+
+    SELECT @KhoaHocNBD = CAST(LEFT(L.KHOAHOC, 4) AS INT)
+    FROM SINHVIEN SV
+    INNER JOIN LOP L ON SV.MALOP = L.MALOP
+    WHERE SV.MASV = @MASV
+
+    SELECT @NamNK = CAST(LEFT(LTC.NIENKHOA, 4) AS INT)
+    FROM LOPTINCHI LTC
+    WHERE LTC.MALTC = @MALTC
+
+    IF @KhoaHocNBD IS NOT NULL AND @NamNK IS NOT NULL AND @NamNK > (@KhoaHocNBD + 7)
+        SET @QuaHan = 1
+
+    IF @QuaHan = 1
+    BEGIN
+        SELECT -20 AS KETQUA, N'Bạn đã quá thời hạn, không thể hủy đăng ký. Chỉ có thể xem điểm.' AS THONGBAO
+        RETURN
+    END
+
     IF NOT EXISTS (SELECT 1 FROM DANGKY WHERE MASV = @MASV AND MALTC = @MALTC AND (HUYDANGKY = 0 OR HUYDANGKY IS NULL))
     BEGIN
         SELECT -1 AS KETQUA, N'Bạn chưa đăng ký lớp này hoặc đã hủy rồi' AS THONGBAO
@@ -588,6 +711,21 @@ BEGIN
         SELECT -1 AS KETQUA, N'Mã môn học đã tồn tại' AS THONGBAO
         RETURN
     END
+
+    -- [VALIDATE_SP_2026] SOTIET_LT phải >= 30 (chuẩn PTIT)
+    IF @SOTIET_LT < 30
+    BEGIN
+        SELECT -2 AS KETQUA, N'Số tiết lý thuyết phải >= 30 (chuẩn PTIT)' AS THONGBAO
+        RETURN
+    END
+
+    -- [VALIDATE_SP_2026] SOTIET_TH phải >= 0
+    IF @SOTIET_TH < 0
+    BEGIN
+        SELECT -3 AS KETQUA, N'Số tiết thực hành phải >= 0' AS THONGBAO
+        RETURN
+    END
+
     INSERT INTO MONHOC (MAMH, TENMH, SOTIET_LT, SOTIET_TH)
     VALUES (@MAMH, @TENMH, @SOTIET_LT, @SOTIET_TH)
     SELECT 1 AS KETQUA, N'Thêm môn học thành công' AS THONGBAO
@@ -617,6 +755,28 @@ BEGIN
         SELECT -1 AS KETQUA, N'Môn học không tồn tại' AS THONGBAO
         RETURN
     END
+
+    -- [VALIDATE_SP_2026] SOTIET_LT phải >= 30 (chuẩn PTIT)
+    IF @SOTIET_LT < 30
+    BEGIN
+        SELECT -2 AS KETQUA, N'Số tiết lý thuyết phải >= 30 (chuẩn PTIT)' AS THONGBAO
+        RETURN
+    END
+
+    -- [VALIDATE_SP_2026] SOTIET_TH phải >= 0
+    IF @SOTIET_TH < 0
+    BEGIN
+        SELECT -3 AS KETQUA, N'Số tiết thực hành phải >= 0' AS THONGBAO
+        RETURN
+    END
+
+    -- [VALIDATE_SP_2026] Nếu môn đã được dùng để mở lớp trong quá khứ → đóng băng không cho sửa
+    IF EXISTS (SELECT 1 FROM LOPTINCHI WHERE MAMH = @MAMH AND NIENKHOA < '2025-2026')
+    BEGIN
+        SELECT -10 AS KETQUA, N'Môn học đã được dạy trong niên khóa < 2025-2026, không thể sửa' AS THONGBAO
+        RETURN
+    END
+
     UPDATE MONHOC
     SET TENMH = @TENMH, SOTIET_LT = @SOTIET_LT, SOTIET_TH = @SOTIET_TH
     WHERE MAMH = @MAMH
@@ -932,6 +1092,52 @@ CREATE PROCEDURE SP_THEM_LOPTINCHI
 AS
 BEGIN
     SET NOCOUNT ON
+
+    -- [VALIDATE_SP_2026] Niên khóa đóng băng: chỉ cho phép NK >= 2025-2026
+    IF @NIENKHOA < '2025-2026'
+    BEGIN
+        SELECT -10 AS KETQUA, N'Niên khóa < 2025-2026 đã bị đóng băng, không thể thêm lớp tín chỉ' AS THONGBAO
+        RETURN
+    END
+
+    -- [VALIDATE_SP_2026] HOCKY phải nằm trong [1, 3]
+    IF @HOCKY < 1 OR @HOCKY > 3
+    BEGIN
+        SELECT -3 AS KETQUA, N'Học kỳ phải nằm trong khoảng [1, 3]' AS THONGBAO
+        RETURN
+    END
+
+    -- [VALIDATE_SP_2026] NHOM phải >= 1
+    IF @NHOM < 1
+    BEGIN
+        SELECT -4 AS KETQUA, N'Nhóm phải >= 1' AS THONGBAO
+        RETURN
+    END
+
+    -- [VALIDATE_SP_2026] SOSVTOITHIEU phải > 0
+    IF @SOSVTOITHIEU <= 0
+    BEGIN
+        SELECT -5 AS KETQUA, N'Số SV tối thiểu phải > 0' AS THONGBAO
+        RETURN
+    END
+
+    -- [VALIDATE_SP_2026] Kiểm tra FK tồn tại (báo lỗi thân thiện thay vì để DB ném exception)
+    IF NOT EXISTS (SELECT 1 FROM MONHOC    WHERE MAMH  = @MAMH)
+    BEGIN
+        SELECT -6 AS KETQUA, N'Mã môn học không tồn tại' AS THONGBAO
+        RETURN
+    END
+    IF NOT EXISTS (SELECT 1 FROM GIANGVIEN WHERE MAGV  = @MAGV)
+    BEGIN
+        SELECT -7 AS KETQUA, N'Mã giảng viên không tồn tại' AS THONGBAO
+        RETURN
+    END
+    IF NOT EXISTS (SELECT 1 FROM KHOA      WHERE MAKHOA = @MAKHOA)
+    BEGIN
+        SELECT -8 AS KETQUA, N'Mã khoa không tồn tại' AS THONGBAO
+        RETURN
+    END
+
     IF EXISTS (
         SELECT 1 FROM LOPTINCHI
         WHERE NIENKHOA = @NIENKHOA AND HOCKY = @HOCKY
@@ -995,6 +1201,49 @@ BEGIN
         SELECT -1 AS KETQUA, N'Lớp tín chỉ không tồn tại' AS THONGBAO
         RETURN
     END
+
+    -- [VALIDATE_SP_2026] Chặn nếu lớp đang sửa thuộc niên khóa đã đóng băng
+    -- So sánh với NK CŨ của lớp (không dùng @NIENKHOA mới truyền vào để tránh né)
+    DECLARE @OldNK NCHAR(9)
+    SELECT @OldNK = NIENKHOA FROM LOPTINCHI WHERE MALTC = @MALTC
+    IF @OldNK < '2025-2026'
+    BEGIN
+        SELECT -10 AS KETQUA, N'Lớp thuộc niên khóa < 2025-2026 đã bị đóng băng, không thể sửa' AS THONGBAO
+        RETURN
+    END
+
+    -- [VALIDATE_SP_2026] Validate các field giống SP_THEM_LOPTINCHI
+    IF @HOCKY < 1 OR @HOCKY > 3
+    BEGIN
+        SELECT -3 AS KETQUA, N'Học kỳ phải nằm trong khoảng [1, 3]' AS THONGBAO
+        RETURN
+    END
+    IF @NHOM < 1
+    BEGIN
+        SELECT -4 AS KETQUA, N'Nhóm phải >= 1' AS THONGBAO
+        RETURN
+    END
+    IF @SOSVTOITHIEU <= 0
+    BEGIN
+        SELECT -5 AS KETQUA, N'Số SV tối thiểu phải > 0' AS THONGBAO
+        RETURN
+    END
+    IF NOT EXISTS (SELECT 1 FROM MONHOC    WHERE MAMH  = @MAMH)
+    BEGIN
+        SELECT -6 AS KETQUA, N'Mã môn học không tồn tại' AS THONGBAO
+        RETURN
+    END
+    IF NOT EXISTS (SELECT 1 FROM GIANGVIEN WHERE MAGV  = @MAGV)
+    BEGIN
+        SELECT -7 AS KETQUA, N'Mã giảng viên không tồn tại' AS THONGBAO
+        RETURN
+    END
+    IF NOT EXISTS (SELECT 1 FROM KHOA      WHERE MAKHOA = @MAKHOA)
+    BEGIN
+        SELECT -8 AS KETQUA, N'Mã khoa không tồn tại' AS THONGBAO
+        RETURN
+    END
+
     UPDATE LOPTINCHI
     SET NIENKHOA = @NIENKHOA, HOCKY = @HOCKY,
         MAMH = @MAMH, NHOM = @NHOM,
@@ -1025,6 +1274,14 @@ BEGIN
         SELECT -1 AS KETQUA, N'Lớp tín chỉ không tồn tại' AS THONGBAO
         RETURN
     END
+
+    -- [VALIDATE_SP_2026] Chặn xóa lớp thuộc niên khóa đã đóng băng
+    IF EXISTS (SELECT 1 FROM LOPTINCHI WHERE MALTC = @MALTC AND NIENKHOA < '2025-2026')
+    BEGIN
+        SELECT -10 AS KETQUA, N'Lớp thuộc niên khóa < 2025-2026 đã bị đóng băng, không thể xóa' AS THONGBAO
+        RETURN
+    END
+
     UPDATE LOPTINCHI SET HUYLOP = 1 WHERE MALTC = @MALTC
     SELECT 1 AS KETQUA, N'Hủy lớp tín chỉ thành công' AS THONGBAO
 END
@@ -1050,6 +1307,14 @@ BEGIN
         SELECT -1 AS KETQUA, N'Lớp tín chỉ không tồn tại' AS THONGBAO
         RETURN
     END
+
+    -- [VALIDATE_SP_2026] Chặn phục hồi lớp thuộc niên khóa đã đóng băng
+    IF EXISTS (SELECT 1 FROM LOPTINCHI WHERE MALTC = @MALTC AND NIENKHOA < '2025-2026')
+    BEGIN
+        SELECT -10 AS KETQUA, N'Lớp thuộc niên khóa < 2025-2026 đã bị đóng băng, không thể phục hồi' AS THONGBAO
+        RETURN
+    END
+
     UPDATE LOPTINCHI SET HUYLOP = 0 WHERE MALTC = @MALTC
     SELECT 1 AS KETQUA, N'Phục hồi lớp tín chỉ thành công' AS THONGBAO
 END

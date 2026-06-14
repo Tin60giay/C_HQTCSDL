@@ -12,10 +12,7 @@ DATABASE_NAME = 'QLDSV_HTC'
 SV_SHARED_LOGIN = 'sv'
 SV_SHARED_PASSWORD = '123'
 
-# --- PHÂN QUYỀN ---
-# Liệt kê MAGV thuộc nhóm PGV (Phòng Giáo Vụ)
-# GV không có trong list này → tự động thuộc nhóm KHOA
-PGV_LOGINS = ['GV01', 'GV05']
+
 
 
 # ----------------------------------------------------------------
@@ -222,7 +219,21 @@ def login():
                     row = cursor.fetchone()
                     if row:
                         magv = row.USER_NAME.strip()
-                        nhom = 'PGV' if magv in PGV_LOGINS else 'KHOA'
+                        
+                        # Lấy Database Role trực tiếp từ SQL Server
+                        cursor.execute(
+                            "SELECT R.name FROM sys.database_role_members RM "
+                            "JOIN sys.database_principals R ON RM.role_principal_id = R.principal_id "
+                            "JOIN sys.database_principals U ON RM.member_principal_id = U.principal_id "
+                            "WHERE U.name = ?",
+                            (magv,)
+                        )
+                        role_row = cursor.fetchone()
+                        if role_row:
+                            nhom = role_row.name.strip()
+                        else:
+                            nhom = 'KHOA'
+                            
                         session['username'] = magv
                         session['hoten'] = row.HOTEN.strip()
                         session['group'] = nhom
@@ -261,6 +272,8 @@ def login():
                         session['role'] = 'SV'
                         session['khoa'] = khoa
                         session['malop'] = row.MALOP.strip() if hasattr(row, 'MALOP') and row.MALOP else ''
+                        # [QUA_HAN_SP_2026] Lưu cờ quá hạn từ SP_DANGNHAP_SV
+                        session['quahan'] = bool(getattr(row, 'QUAHAN', 0))
                         session['db_login'] = SV_SHARED_LOGIN
                         session['db_pass'] = SV_SHARED_PASSWORD
                         conn.close()
@@ -1365,6 +1378,7 @@ def dangky():
                            masv=session.get('username'),
                            malop=session.get('malop', ''),
                            nienkhoa_list=nk_list,
+                           quahan=session.get('quahan', False),
                            group=session.get('group'))
 
 
@@ -1431,7 +1445,11 @@ def dangky_thuchien():
         return jsonify({'ok': False, 'msg': 'Không thể kết nối DB'}), 500
     try:
         cursor = conn.cursor()
-        
+
+        # [QUA_HAN_SP_2026] Nếu SV đã quá hạn (KHOAHOC + 7 năm) → từ chối
+        if session.get('quahan'):
+            return jsonify({'ok': False, 'msg': 'Tài khoản của bạn đã quá hạn, chỉ có thể xem phiếu điểm.'})
+
         # KIỂM TRA ĐÓNG BĂNG: Không cho phép đăng ký vào niên khóa cũ (< 2025)
         cursor.execute("SELECT NIENKHOA FROM LOPTINCHI WHERE MALTC = ?", (maltc,))
         res = cursor.fetchone()
@@ -1460,7 +1478,11 @@ def dangky_huy():
         return jsonify({'ok': False, 'msg': 'Không thể kết nối DB'}), 500
     try:
         cursor = conn.cursor()
-        
+
+        # [QUA_HAN_SP_2026] Nếu SV đã quá hạn → từ chối
+        if session.get('quahan'):
+            return jsonify({'ok': False, 'msg': 'Tài khoản của bạn đã quá hạn, không thể hủy đăng ký.'})
+
         # KIỂM TRA ĐÓNG BĂNG: Không cho phép hủy lớp thuộc niên khóa cũ (< 2025)
         cursor.execute("SELECT NIENKHOA FROM LOPTINCHI WHERE MALTC = ?", (maltc,))
         res = cursor.fetchone()
@@ -1487,6 +1509,9 @@ def dangky_huy():
 @require_group('SV')
 def phieu_diem():
     masv = session.get('username', '')
+    hoten = session.get('hoten', '')
+    malop = session.get('malop', '')
+    quahan = session.get('quahan', False)
     conn, _ = get_db()
     diem_list = []
     if conn:
@@ -1494,17 +1519,28 @@ def phieu_diem():
             cursor = conn.cursor()
             cursor.execute("EXEC SP_XEM_PHIEU_DIEM ?", (masv,))
             rows = cursor.fetchall()
-            diem_list = [{'NIENKHOA': r.NIENKHOA.strip(), 'HOCKY': r.HOCKY,
-                          'MAMH': r.MAMH.strip(), 'TENMH': r.TENMH.strip(),
-                          'NHOM': r.NHOM, 'TENGV': r.TENGV.strip(),
-                          'DIEM_CC': r.DIEM_CC, 'DIEM_GK': r.DIEM_GK,
-                          'DIEM_CK': r.DIEM_CK, 'DIEM_TK': r.DIEM_TK} for r in rows]
+            for r in rows:
+                diem_list.append({
+                    'NIENKHOA': r.NIENKHOA.strip() if r.NIENKHOA else '',
+                    'HOCKY': r.HOCKY,
+                    'MAMH': r.MAMH.strip() if r.MAMH else '',
+                    'TENMH': r.TENMH.strip() if r.TENMH else '',
+                    'NHOM': r.NHOM,
+                    'TENGV': r.TENGV.strip() if r.TENGV else '',
+                    'DIEM_CC': r.DIEM_CC,
+                    'DIEM_GK': r.DIEM_GK,
+                    'DIEM_CK': r.DIEM_CK,
+                    'DIEM_TK': r.DIEM_TK
+                })
         except Exception as e:
             flash(f'Lỗi: {e}')
         finally:
             conn.close()
-    return render_template('phieu_diem.html', diem_list=diem_list,
-                           masv=masv, hoten=session.get('hoten'),
+    return render_template('phieu_diem.html',
+                           phieu_diem=diem_list,
+                           sv={'MASV': masv, 'HOTEN': hoten, 'MALOP': malop},
+                           quahan=quahan,
+                           hoten=hoten,
                            group=session.get('group'))
 
 
