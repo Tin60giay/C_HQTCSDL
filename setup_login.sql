@@ -493,9 +493,67 @@ GO
 PRINT N'Đã tạo SP_DANGKY_LTC (v3: 1 lớp/môn)'
 GO
 
--- ------------------------------------------------------------
+-- ============================================================
+-- [UNIQUE_INDEX_SP_2026] Chặn đăng ký trùng MÔN trong cùng HK/NK
+--   bằng UNIQUE INDEX ở mức DATABASE (không chỉ ở SP)
+--   Cách làm: thêm 3 cột PERSISTED COMPUTED lấy từ LOPTINCHI
+--             rồi UNIQUE INDEX trên (MASV, MAMH, NIENKHOA, HOCKY)
+--             có WHERE HUYDANGKY = 0 (filtered index)
+-- ============================================================
+
+-- 1. Thêm 3 cột PERSISTED + default lấy từ LOPTINCHI
+IF NOT EXISTS (
+    SELECT 1 FROM sys.columns 
+    WHERE object_id = OBJECT_ID('DANGKY') AND name = 'MAMH'
+)
+BEGIN
+    ALTER TABLE DANGKY ADD MAMH AS (
+        (SELECT MAMH FROM LOPTINCHI WHERE LOPTINCHI.MALTC = DANGKY.MALTC)
+    ) PERSISTED
+END
+GO
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.columns 
+    WHERE object_id = OBJECT_ID('DANGKY') AND name = 'NIENKHOA'
+)
+BEGIN
+    ALTER TABLE DANGKY ADD NIENKHOA AS (
+        (SELECT NIENKHOA FROM LOPTINCHI WHERE LOPTINCHI.MALTC = DANGKY.MALTC)
+    ) PERSISTED
+END
+GO
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.columns 
+    WHERE object_id = OBJECT_ID('DANGKY') AND name = 'HOCKY'
+)
+BEGIN
+    ALTER TABLE DANGKY ADD HOCKY AS (
+        (SELECT HOCKY FROM LOPTINCHI WHERE LOPTINCHI.MALTC = DANGKY.MALTC)
+    ) PERSISTED
+END
+GO
+
+-- 2. Tạo UNIQUE FILTERED INDEX
+--    Chỉ chặn với những dòng CHƯA hủy đăng ký (HUYDANGKY = 0)
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes 
+    WHERE name = 'UQ_DANGKY_SV_MH_HK_NK' AND object_id = OBJECT_ID('DANGKY')
+)
+BEGIN
+    CREATE UNIQUE INDEX UQ_DANGKY_SV_MH_HK_NK
+    ON DANGKY (MASV, MAMH, NIENKHOA, HOCKY)
+    WHERE HUYDANGKY = 0  -- filtered index: bỏ qua dòng đã hủy
+END
+GO
+
+PRINT N'Đã tạo UNIQUE INDEX UQ_DANGKY_SV_MH_HK_NK (filtered, persisted computed)'
+GO
+
+-- ============================================================
 -- SP_HUY_DANGKY: Sinh viên hủy đăng ký lớp tín chỉ
--- ------------------------------------------------------------
+-- ============================================================
 IF EXISTS (SELECT * FROM sys.objects WHERE name = 'SP_HUY_DANGKY' AND type = 'P')
     DROP PROCEDURE SP_HUY_DANGKY
 GO

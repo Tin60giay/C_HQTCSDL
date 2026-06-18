@@ -247,7 +247,7 @@ def login():
                     else:
                         flash('Không tìm thấy thông tin giảng viên tương ứng.')
                 except Exception as e:
-                    flash(f'Lỗi: {str(e)}. Đảm bảo đã chạy setup_login.sql trên SSMS.')
+                    flash(f'Lỗi: {str(e)}')
                 conn.close()
             else:
                 flash('Sai tài khoản hoặc mật khẩu! (SQL Server Authentication)')
