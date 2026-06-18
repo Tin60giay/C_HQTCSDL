@@ -331,6 +331,7 @@
                     <button class="btn btn-outline btn-sm" onclick="openHistory()" style="margin-left:auto;">🕓 Lịch
                         sử</button>
                 </div>
+                <div style="max-height:400px; overflow-y:auto;">
                 <table id="tblSV">
                     <thead>
                         <tr>
@@ -362,6 +363,7 @@
                         {% endfor %}
                     </tbody>
                 </table>
+                </div>
 
                 <!-- Form nhập liệu -->
                 <div class="form-grid" id="svForm" style="margin-top:1.25rem;">
@@ -535,6 +537,7 @@
             document.getElementById('fDIACHI').value = '';
             document.getElementById('fNGAY').value = '';
             document.getElementById('fNGHIHOC').value = '0';
+            toggleFormLock(false, ['fHO', 'fTEN', 'fPHAI', 'fNGAY', 'fDIACHI', 'fMALOP']);
             updateActionButtons('idle');
             fM.focus();
         }

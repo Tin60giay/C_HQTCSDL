@@ -253,6 +253,7 @@
                     style="background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:.45rem .75rem;color:var(--text-main);font-family:inherit;font-size:.875rem;width:100%;max-width:360px;">
             </div>
 
+            <div style="max-height:400px; overflow-y:auto;">
             <table id="tblMonhoc">
                 <thead>
                     <tr>
@@ -264,7 +265,7 @@
                 </thead>
                 <tbody>
                     {% for m in monhoc_list %}
-                    <tr class="{% if m.IS_FROZEN %}frozen-row{% endif %}" 
+                    <tr class="{% if m.IS_FROZEN %}frozen-row{% endif %}" data-text="{{ m.MAMH }} {{ m.TENMH }}"
                         onclick="chonDong(this, '{{ m.MAMH }}', '{{ m.TENMH }}', '{{ m.SOTIET_LT }}', '{{ m.SOTIET_TH }}', {{ 'true' if m.IS_FROZEN else 'false' }})">
                         <td>
                             {{ m.MAMH }}
@@ -282,6 +283,7 @@
                     {% endfor %}
                 </tbody>
             </table>
+            </div>
         </div>
 
         <div class="card" id="formCard">
@@ -468,6 +470,7 @@
             document.getElementById('fTENMH').value = '';
             document.getElementById('fLT').value = '30';
             document.getElementById('fTH').value = '0';
+            toggleFormLock(false, ['fTENMH', 'fLT', 'fTH']);
             updateActionButtons('idle');
             fM.focus();
         }

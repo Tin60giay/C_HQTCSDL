@@ -68,28 +68,12 @@ AS
 BEGIN
     SET NOCOUNT ON
 
-    -- [QUA_HAN_SP_2026] Tính cờ QUAHAN:
-    --   1 = sinh viên đã học quá 7 năm kể từ khóa học
-    --   0 = còn trong thời hạn
-    -- Công thức: YEAR(GETDATE()) - CAST(LEFT(LOP.KHOAHOC, 4) AS INT) > 7
-    DECLARE @KhoaHocNBD INT = NULL
-    DECLARE @QuaHan BIT = 0
-
-    SELECT @KhoaHocNBD = CAST(LEFT(L.KHOAHOC, 4) AS INT)
-    FROM SINHVIEN SV
-    INNER JOIN LOP L ON SV.MALOP = L.MALOP
-    WHERE SV.MASV = @MASV
-
-    IF @KhoaHocNBD IS NOT NULL AND (YEAR(GETDATE()) - @KhoaHocNBD) > 7
-        SET @QuaHan = 1
-
     SELECT 
         SV.MASV                                         AS USER_NAME,
         RTRIM(SV.HO) + N' ' + RTRIM(SV.TEN)            AS HOTEN,
         K.TENKHOA                                       AS TENGROUP,
         RTRIM(SV.MALOP)                                 AS MALOP,
-        RTRIM(L.TENLOP)                                 AS TENLOP,
-        @QuaHan                                         AS QUAHAN
+        RTRIM(L.TENLOP)                                 AS TENLOP
     FROM SINHVIEN SV
     INNER JOIN LOP  L ON SV.MALOP  = L.MALOP
     INNER JOIN KHOA K ON L.MAKHOA  = K.MAKHOA
@@ -337,60 +321,24 @@ BEGIN
         SELECT -1 AS KETQUA, N'Sinh viên chưa đăng ký lớp tín chỉ này' AS THONGBAO
         RETURN
     END
-
-    -- [QUA_HAN_SP_2026] Chặn giảng viên nhập điểm cho SV đã quá hạn
-    -- Công thức: năm bắt đầu NK của LTC > (năm bắt đầu KHOAHOC + 7)
-    DECLARE @KhoaHocNBD_ND INT = NULL
-    DECLARE @NamNK_ND INT = NULL
-
-    SELECT @KhoaHocNBD_ND = CAST(LEFT(L.KHOAHOC, 4) AS INT)
-    FROM SINHVIEN SV
-    INNER JOIN LOP L ON SV.MALOP = L.MALOP
-    WHERE SV.MASV = @MASV
-
-    SELECT @NamNK_ND = CAST(LEFT(LTC.NIENKHOA, 4) AS INT)
-    FROM LOPTINCHI LTC
-    WHERE LTC.MALTC = @MALTC
-
-    IF @KhoaHocNBD_ND IS NOT NULL AND @NamNK_ND IS NOT NULL AND @NamNK_ND > (@KhoaHocNBD_ND + 7)
-    BEGIN
-        SELECT -20 AS KETQUA, N'Sinh viên đã quá hạn (KHOAHOC + 7 năm), không thể nhập/sửa điểm' AS THONGBAO
-        RETURN
-    END
-
-    -- [VALIDATE_SP_2026] Điểm CC: INT, khoảng [0, 10]
+    -- Validate điểm CC: nguyên, 0-10
     IF @DIEM_CC IS NOT NULL AND (@DIEM_CC < 0 OR @DIEM_CC > 10)
     BEGIN
-        SELECT -2 AS KETQUA, N'Điểm chuyên cần phải nằm trong khoảng [0, 10]' AS THONGBAO
+        SELECT -2 AS KETQUA, N'Điểm chuyên cần phải trong khoảng 0 đến 10' AS THONGBAO
         RETURN
     END
-
-    -- [VALIDATE_SP_2026] Điểm GK: FLOAT, khoảng [0, 10]
-    IF @DIEM_GK IS NOT NULL AND (@DIEM_GK < 0 OR @DIEM_GK > 10)
+    -- Validate điểm GK: 0-10, bước 0.5
+    IF @DIEM_GK IS NOT NULL AND (@DIEM_GK < 0 OR @DIEM_GK > 10 OR (@DIEM_GK * 2) <> FLOOR(@DIEM_GK * 2))
     BEGIN
-        SELECT -3 AS KETQUA, N'Điểm giữa kỳ phải nằm trong khoảng [0, 10]' AS THONGBAO
+        SELECT -3 AS KETQUA, N'Điểm giữa kỳ phải trong khoảng 0-10, bước 0.5' AS THONGBAO
         RETURN
     END
-    -- [VALIDATE_SP_2026] Điểm GK: phải là bội số của 0.5
-    IF @DIEM_GK IS NOT NULL AND ABS((@DIEM_GK * 2) - ROUND(@DIEM_GK * 2, 0)) > 0.0001
+    -- Validate điểm CK: 0-10, bước 0.5
+    IF @DIEM_CK IS NOT NULL AND (@DIEM_CK < 0 OR @DIEM_CK > 10 OR (@DIEM_CK * 2) <> FLOOR(@DIEM_CK * 2))
     BEGIN
-        SELECT -4 AS KETQUA, N'Điểm giữa kỳ phải là bội số của 0.5' AS THONGBAO
+        SELECT -4 AS KETQUA, N'Điểm cuối kỳ phải trong khoảng 0-10, bước 0.5' AS THONGBAO
         RETURN
     END
-
-    -- [VALIDATE_SP_2026] Điểm CK: FLOAT, khoảng [0, 10]
-    IF @DIEM_CK IS NOT NULL AND (@DIEM_CK < 0 OR @DIEM_CK > 10)
-    BEGIN
-        SELECT -5 AS KETQUA, N'Điểm cuối kỳ phải nằm trong khoảng [0, 10]' AS THONGBAO
-        RETURN
-    END
-    -- [VALIDATE_SP_2026] Điểm CK: phải là bội số của 0.5
-    IF @DIEM_CK IS NOT NULL AND ABS((@DIEM_CK * 2) - ROUND(@DIEM_CK * 2, 0)) > 0.0001
-    BEGIN
-        SELECT -6 AS KETQUA, N'Điểm cuối kỳ phải là bội số của 0.5' AS THONGBAO
-        RETURN
-    END
-
     UPDATE DANGKY
     SET DIEM_CC = @DIEM_CC,
         DIEM_GK = @DIEM_GK,
@@ -401,7 +349,7 @@ END
 GO
 GRANT EXECUTE ON SP_NHAP_DIEM TO PUBLIC
 GO
-PRINT N'Đã tạo SP_NHAP_DIEM'
+PRINT N'Đã tạo SP_NHAP_DIEM (v2: validate điểm 0-10, bước 0.5)'
 GO
 
 -- ------------------------------------------------------------
@@ -430,36 +378,7 @@ BEGIN
         RETURN
     END
 
-    -- 2. [QUA_HAN_SP_2026] Chặn SV quá hạn (YEAR(GETDATE()) - năm bắt đầu KHOAHOC > 7)
-    DECLARE @KhoaHocNBD INT = NULL
-    DECLARE @NamNK INT = NULL
-    DECLARE @QuaHan BIT = 0
-
-    SELECT @KhoaHocNBD = CAST(LEFT(L.KHOAHOC, 4) AS INT)
-    FROM SINHVIEN SV
-    INNER JOIN LOP L ON SV.MALOP = L.MALOP
-    WHERE SV.MASV = @MASV
-
-    SET @NamNK = CAST(LEFT(@NK, 4) AS INT)
-
-    IF @KhoaHocNBD IS NOT NULL AND @NamNK > (@KhoaHocNBD + 7)
-        SET @QuaHan = 1
-
-    IF @QuaHan = 1
-    BEGIN
-        SELECT -20 AS KETQUA, N'Bạn đã quá thời hạn đăng ký (vượt quá KHOAHOC + 7 năm). Chỉ có thể xem điểm.' AS THONGBAO
-        RETURN
-    END
-
-    -- 3. [QUA_HAN_SP_2026] Chặn đăng ký LTC trong quá khứ (NK < NK hiện tại)
-    DECLARE @NamHienTai INT = YEAR(GETDATE())
-    IF @NamNK < @NamHienTai
-    BEGIN
-        SELECT -21 AS KETQUA, N'Không thể đăng ký lớp tín chỉ thuộc niên khóa trong quá khứ.' AS THONGBAO
-        RETURN
-    END
-
-    -- 4. Kiểm tra trùng môn học trong cùng học kỳ/niên khóa
+    -- 2. Kiểm tra trùng môn học trong cùng học kỳ/niên khóa
     IF EXISTS (
         SELECT 1 FROM DANGKY DK
         JOIN LOPTINCHI LTC ON DK.MALTC = LTC.MALTC
@@ -493,67 +412,9 @@ GO
 PRINT N'Đã tạo SP_DANGKY_LTC (v3: 1 lớp/môn)'
 GO
 
--- ============================================================
--- [UNIQUE_INDEX_SP_2026] Chặn đăng ký trùng MÔN trong cùng HK/NK
---   bằng UNIQUE INDEX ở mức DATABASE (không chỉ ở SP)
---   Cách làm: thêm 3 cột PERSISTED COMPUTED lấy từ LOPTINCHI
---             rồi UNIQUE INDEX trên (MASV, MAMH, NIENKHOA, HOCKY)
---             có WHERE HUYDANGKY = 0 (filtered index)
--- ============================================================
-
--- 1. Thêm 3 cột PERSISTED + default lấy từ LOPTINCHI
-IF NOT EXISTS (
-    SELECT 1 FROM sys.columns 
-    WHERE object_id = OBJECT_ID('DANGKY') AND name = 'MAMH'
-)
-BEGIN
-    ALTER TABLE DANGKY ADD MAMH AS (
-        (SELECT MAMH FROM LOPTINCHI WHERE LOPTINCHI.MALTC = DANGKY.MALTC)
-    ) PERSISTED
-END
-GO
-
-IF NOT EXISTS (
-    SELECT 1 FROM sys.columns 
-    WHERE object_id = OBJECT_ID('DANGKY') AND name = 'NIENKHOA'
-)
-BEGIN
-    ALTER TABLE DANGKY ADD NIENKHOA AS (
-        (SELECT NIENKHOA FROM LOPTINCHI WHERE LOPTINCHI.MALTC = DANGKY.MALTC)
-    ) PERSISTED
-END
-GO
-
-IF NOT EXISTS (
-    SELECT 1 FROM sys.columns 
-    WHERE object_id = OBJECT_ID('DANGKY') AND name = 'HOCKY'
-)
-BEGIN
-    ALTER TABLE DANGKY ADD HOCKY AS (
-        (SELECT HOCKY FROM LOPTINCHI WHERE LOPTINCHI.MALTC = DANGKY.MALTC)
-    ) PERSISTED
-END
-GO
-
--- 2. Tạo UNIQUE FILTERED INDEX
---    Chỉ chặn với những dòng CHƯA hủy đăng ký (HUYDANGKY = 0)
-IF NOT EXISTS (
-    SELECT 1 FROM sys.indexes 
-    WHERE name = 'UQ_DANGKY_SV_MH_HK_NK' AND object_id = OBJECT_ID('DANGKY')
-)
-BEGIN
-    CREATE UNIQUE INDEX UQ_DANGKY_SV_MH_HK_NK
-    ON DANGKY (MASV, MAMH, NIENKHOA, HOCKY)
-    WHERE HUYDANGKY = 0  -- filtered index: bỏ qua dòng đã hủy
-END
-GO
-
-PRINT N'Đã tạo UNIQUE INDEX UQ_DANGKY_SV_MH_HK_NK (filtered, persisted computed)'
-GO
-
--- ============================================================
+-- ------------------------------------------------------------
 -- SP_HUY_DANGKY: Sinh viên hủy đăng ký lớp tín chỉ
--- ============================================================
+-- ------------------------------------------------------------
 IF EXISTS (SELECT * FROM sys.objects WHERE name = 'SP_HUY_DANGKY' AND type = 'P')
     DROP PROCEDURE SP_HUY_DANGKY
 GO
@@ -563,30 +424,6 @@ CREATE PROCEDURE SP_HUY_DANGKY
 AS
 BEGIN
     SET NOCOUNT ON
-    
-    -- [QUA_HAN_SP_2026] Chặn hủy nếu SV đã quá hạn
-    DECLARE @KhoaHocNBD INT = NULL
-    DECLARE @NamNK INT = NULL
-    DECLARE @QuaHan BIT = 0
-
-    SELECT @KhoaHocNBD = CAST(LEFT(L.KHOAHOC, 4) AS INT)
-    FROM SINHVIEN SV
-    INNER JOIN LOP L ON SV.MALOP = L.MALOP
-    WHERE SV.MASV = @MASV
-
-    SELECT @NamNK = CAST(LEFT(LTC.NIENKHOA, 4) AS INT)
-    FROM LOPTINCHI LTC
-    WHERE LTC.MALTC = @MALTC
-
-    IF @KhoaHocNBD IS NOT NULL AND @NamNK IS NOT NULL AND @NamNK > (@KhoaHocNBD + 7)
-        SET @QuaHan = 1
-
-    IF @QuaHan = 1
-    BEGIN
-        SELECT -20 AS KETQUA, N'Bạn đã quá thời hạn, không thể hủy đăng ký. Chỉ có thể xem điểm.' AS THONGBAO
-        RETURN
-    END
-
     IF NOT EXISTS (SELECT 1 FROM DANGKY WHERE MASV = @MASV AND MALTC = @MALTC AND (HUYDANGKY = 0 OR HUYDANGKY IS NULL))
     BEGIN
         SELECT -1 AS KETQUA, N'Bạn chưa đăng ký lớp này hoặc đã hủy rồi' AS THONGBAO
@@ -769,21 +606,11 @@ BEGIN
         SELECT -1 AS KETQUA, N'Mã môn học đã tồn tại' AS THONGBAO
         RETURN
     END
-
-    -- [VALIDATE_SP_2026] SOTIET_LT phải >= 30 (chuẩn PTIT)
-    IF @SOTIET_LT < 30
+    IF EXISTS (SELECT 1 FROM MONHOC WHERE TENMH = @TENMH)
     BEGIN
-        SELECT -2 AS KETQUA, N'Số tiết lý thuyết phải >= 30 (chuẩn PTIT)' AS THONGBAO
+        SELECT -2 AS KETQUA, N'Tên môn học đã tồn tại' AS THONGBAO
         RETURN
     END
-
-    -- [VALIDATE_SP_2026] SOTIET_TH phải >= 0
-    IF @SOTIET_TH < 0
-    BEGIN
-        SELECT -3 AS KETQUA, N'Số tiết thực hành phải >= 0' AS THONGBAO
-        RETURN
-    END
-
     INSERT INTO MONHOC (MAMH, TENMH, SOTIET_LT, SOTIET_TH)
     VALUES (@MAMH, @TENMH, @SOTIET_LT, @SOTIET_TH)
     SELECT 1 AS KETQUA, N'Thêm môn học thành công' AS THONGBAO
@@ -813,28 +640,11 @@ BEGIN
         SELECT -1 AS KETQUA, N'Môn học không tồn tại' AS THONGBAO
         RETURN
     END
-
-    -- [VALIDATE_SP_2026] SOTIET_LT phải >= 30 (chuẩn PTIT)
-    IF @SOTIET_LT < 30
+    IF EXISTS (SELECT 1 FROM MONHOC WHERE TENMH = @TENMH AND MAMH <> @MAMH)
     BEGIN
-        SELECT -2 AS KETQUA, N'Số tiết lý thuyết phải >= 30 (chuẩn PTIT)' AS THONGBAO
+        SELECT -2 AS KETQUA, N'Tên môn học đã tồn tại' AS THONGBAO
         RETURN
     END
-
-    -- [VALIDATE_SP_2026] SOTIET_TH phải >= 0
-    IF @SOTIET_TH < 0
-    BEGIN
-        SELECT -3 AS KETQUA, N'Số tiết thực hành phải >= 0' AS THONGBAO
-        RETURN
-    END
-
-    -- [VALIDATE_SP_2026] Nếu môn đã được dùng để mở lớp trong quá khứ → đóng băng không cho sửa
-    IF EXISTS (SELECT 1 FROM LOPTINCHI WHERE MAMH = @MAMH AND NIENKHOA < '2025-2026')
-    BEGIN
-        SELECT -10 AS KETQUA, N'Môn học đã được dạy trong niên khóa < 2025-2026, không thể sửa' AS THONGBAO
-        RETURN
-    END
-
     UPDATE MONHOC
     SET TENMH = @TENMH, SOTIET_LT = @SOTIET_LT, SOTIET_TH = @SOTIET_TH
     WHERE MAMH = @MAMH
@@ -913,6 +723,11 @@ BEGIN
         SELECT -1 AS KETQUA, N'Mã lớp đã tồn tại' AS THONGBAO
         RETURN
     END
+    IF EXISTS (SELECT 1 FROM LOP WHERE TENLOP = @TENLOP)
+    BEGIN
+        SELECT -3 AS KETQUA, N'Tên lớp đã tồn tại' AS THONGBAO
+        RETURN
+    END
     IF NOT EXISTS (SELECT 1 FROM KHOA WHERE MAKHOA = @MAKHOA)
     BEGIN
         SELECT -2 AS KETQUA, N'Khoa không tồn tại' AS THONGBAO
@@ -945,6 +760,11 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM LOP WHERE MALOP = @MALOP)
     BEGIN
         SELECT -1 AS KETQUA, N'Lớp không tồn tại' AS THONGBAO
+        RETURN
+    END
+    IF EXISTS (SELECT 1 FROM LOP WHERE TENLOP = @TENLOP AND MALOP <> @MALOP)
+    BEGIN
+        SELECT -3 AS KETQUA, N'Tên lớp đã tồn tại' AS THONGBAO
         RETURN
     END
     UPDATE LOP
@@ -1087,7 +907,8 @@ CREATE PROCEDURE SP_SUA_SV
     @PHAI      BIT,
     @DIACHI    NVARCHAR(100),
     @NGAYSINH  DATE,
-    @MALOP     NCHAR(10)
+    @MALOP     NCHAR(10),
+    @DANGHIHOC BIT = 0
 AS
 BEGIN
     SET NOCOUNT ON
@@ -1098,14 +919,15 @@ BEGIN
     END
     UPDATE SINHVIEN
     SET HO = @HO, TEN = @TEN, PHAI = @PHAI,
-        DIACHI = @DIACHI, NGAYSINH = @NGAYSINH, MALOP = @MALOP
+        DIACHI = @DIACHI, NGAYSINH = @NGAYSINH, MALOP = @MALOP,
+        DANGHIHOC = @DANGHIHOC
     WHERE MASV = @MASV
     SELECT 1 AS KETQUA, N'Cập nhật sinh viên thành công' AS THONGBAO
 END
 GO
 GRANT EXECUTE ON SP_SUA_SV TO PUBLIC
 GO
-PRINT N'Đã tạo SP_SUA_SV'
+PRINT N'Đã tạo SP_SUA_SV (v2: hỗ trợ DANGHIHOC)'
 GO
 
 -- ------------------------------------------------------------
@@ -1150,52 +972,24 @@ CREATE PROCEDURE SP_THEM_LOPTINCHI
 AS
 BEGIN
     SET NOCOUNT ON
-
-    -- [VALIDATE_SP_2026] Niên khóa đóng băng: chỉ cho phép NK >= 2025-2026
-    IF @NIENKHOA < '2025-2026'
-    BEGIN
-        SELECT -10 AS KETQUA, N'Niên khóa < 2025-2026 đã bị đóng băng, không thể thêm lớp tín chỉ' AS THONGBAO
-        RETURN
-    END
-
-    -- [VALIDATE_SP_2026] HOCKY phải nằm trong [1, 3]
+    -- Validate HOCKY
     IF @HOCKY < 1 OR @HOCKY > 3
     BEGIN
-        SELECT -3 AS KETQUA, N'Học kỳ phải nằm trong khoảng [1, 3]' AS THONGBAO
+        SELECT -5 AS KETQUA, N'Học kỳ phải từ 1 đến 3' AS THONGBAO
         RETURN
     END
-
-    -- [VALIDATE_SP_2026] NHOM phải >= 1
+    -- Validate NHOM
     IF @NHOM < 1
     BEGIN
-        SELECT -4 AS KETQUA, N'Nhóm phải >= 1' AS THONGBAO
+        SELECT -6 AS KETQUA, N'Nhóm phải lớn hơn hoặc bằng 1' AS THONGBAO
         RETURN
     END
-
-    -- [VALIDATE_SP_2026] SOSVTOITHIEU phải > 0
+    -- Validate SOSVTOITHIEU
     IF @SOSVTOITHIEU <= 0
     BEGIN
-        SELECT -5 AS KETQUA, N'Số SV tối thiểu phải > 0' AS THONGBAO
+        SELECT -7 AS KETQUA, N'Số SV tối thiểu phải lớn hơn 0' AS THONGBAO
         RETURN
     END
-
-    -- [VALIDATE_SP_2026] Kiểm tra FK tồn tại (báo lỗi thân thiện thay vì để DB ném exception)
-    IF NOT EXISTS (SELECT 1 FROM MONHOC    WHERE MAMH  = @MAMH)
-    BEGIN
-        SELECT -6 AS KETQUA, N'Mã môn học không tồn tại' AS THONGBAO
-        RETURN
-    END
-    IF NOT EXISTS (SELECT 1 FROM GIANGVIEN WHERE MAGV  = @MAGV)
-    BEGIN
-        SELECT -7 AS KETQUA, N'Mã giảng viên không tồn tại' AS THONGBAO
-        RETURN
-    END
-    IF NOT EXISTS (SELECT 1 FROM KHOA      WHERE MAKHOA = @MAKHOA)
-    BEGIN
-        SELECT -8 AS KETQUA, N'Mã khoa không tồn tại' AS THONGBAO
-        RETURN
-    END
-
     IF EXISTS (
         SELECT 1 FROM LOPTINCHI
         WHERE NIENKHOA = @NIENKHOA AND HOCKY = @HOCKY
@@ -1205,7 +999,6 @@ BEGIN
         SELECT -1 AS KETQUA, N'Lớp tín chỉ đã tồn tại (cùng niên khóa, học kỳ, môn, nhóm)' AS THONGBAO
         RETURN
     END
-
     IF EXISTS (
         SELECT 1 FROM LOPTINCHI
         WHERE NIENKHOA = @NIENKHOA AND HOCKY = @HOCKY
@@ -1216,24 +1009,20 @@ BEGIN
         SET HUYLOP = 0, MAGV = @MAGV, MAKHOA = @MAKHOA, SOSVTOITHIEU = @SOSVTOITHIEU
         WHERE NIENKHOA = @NIENKHOA AND HOCKY = @HOCKY
           AND MAMH = @MAMH AND NHOM = @NHOM
-        
-        -- Get the ID to return it
         DECLARE @UpdatedID INT
         SELECT @UpdatedID = MALTC FROM LOPTINCHI 
         WHERE NIENKHOA = @NIENKHOA AND HOCKY = @HOCKY AND MAMH = @MAMH AND NHOM = @NHOM
-        
         SELECT @UpdatedID AS KETQUA, N'Mở lại lớp tín chỉ đã hủy thành công' AS THONGBAO
         RETURN
     END
-
     INSERT INTO LOPTINCHI (NIENKHOA, HOCKY, MAMH, NHOM, MAGV, MAKHOA, SOSVTOITHIEU, HUYLOP)
     VALUES (@NIENKHOA, @HOCKY, @MAMH, @NHOM, @MAGV, @MAKHOA, @SOSVTOITHIEU, 0)
-    SELECT 1 AS KETQUA, N'Mở lớp tín chỉ thành công' AS THONGBAO
+    SELECT SCOPE_IDENTITY() AS KETQUA, N'Mở lớp tín chỉ thành công' AS THONGBAO
 END
 GO
 GRANT EXECUTE ON SP_THEM_LOPTINCHI TO PUBLIC
 GO
-PRINT N'Đã tạo SP_THEM_LOPTINCHI'
+PRINT N'Đã tạo SP_THEM_LOPTINCHI (v2: validate + SCOPE_IDENTITY)'
 GO
 
 -- ------------------------------------------------------------
@@ -1259,49 +1048,35 @@ BEGIN
         SELECT -1 AS KETQUA, N'Lớp tín chỉ không tồn tại' AS THONGBAO
         RETURN
     END
-
-    -- [VALIDATE_SP_2026] Chặn nếu lớp đang sửa thuộc niên khóa đã đóng băng
-    -- So sánh với NK CŨ của lớp (không dùng @NIENKHOA mới truyền vào để tránh né)
-    DECLARE @OldNK NCHAR(9)
-    SELECT @OldNK = NIENKHOA FROM LOPTINCHI WHERE MALTC = @MALTC
-    IF @OldNK < '2025-2026'
-    BEGIN
-        SELECT -10 AS KETQUA, N'Lớp thuộc niên khóa < 2025-2026 đã bị đóng băng, không thể sửa' AS THONGBAO
-        RETURN
-    END
-
-    -- [VALIDATE_SP_2026] Validate các field giống SP_THEM_LOPTINCHI
+    -- Validate HOCKY
     IF @HOCKY < 1 OR @HOCKY > 3
     BEGIN
-        SELECT -3 AS KETQUA, N'Học kỳ phải nằm trong khoảng [1, 3]' AS THONGBAO
+        SELECT -5 AS KETQUA, N'Học kỳ phải từ 1 đến 3' AS THONGBAO
         RETURN
     END
+    -- Validate NHOM
     IF @NHOM < 1
     BEGIN
-        SELECT -4 AS KETQUA, N'Nhóm phải >= 1' AS THONGBAO
+        SELECT -6 AS KETQUA, N'Nhóm phải lớn hơn hoặc bằng 1' AS THONGBAO
         RETURN
     END
+    -- Validate SOSVTOITHIEU
     IF @SOSVTOITHIEU <= 0
     BEGIN
-        SELECT -5 AS KETQUA, N'Số SV tối thiểu phải > 0' AS THONGBAO
+        SELECT -7 AS KETQUA, N'Số SV tối thiểu phải lớn hơn 0' AS THONGBAO
         RETURN
     END
-    IF NOT EXISTS (SELECT 1 FROM MONHOC    WHERE MAMH  = @MAMH)
+    -- Kiểm tra trùng tổ hợp (không tính chính nó)
+    IF EXISTS (
+        SELECT 1 FROM LOPTINCHI
+        WHERE NIENKHOA = @NIENKHOA AND HOCKY = @HOCKY
+          AND MAMH = @MAMH AND NHOM = @NHOM
+          AND MALTC <> @MALTC AND HUYLOP = 0
+    )
     BEGIN
-        SELECT -6 AS KETQUA, N'Mã môn học không tồn tại' AS THONGBAO
+        SELECT -2 AS KETQUA, N'Đã có lớp tín chỉ khác với cùng niên khóa, học kỳ, môn, nhóm' AS THONGBAO
         RETURN
     END
-    IF NOT EXISTS (SELECT 1 FROM GIANGVIEN WHERE MAGV  = @MAGV)
-    BEGIN
-        SELECT -7 AS KETQUA, N'Mã giảng viên không tồn tại' AS THONGBAO
-        RETURN
-    END
-    IF NOT EXISTS (SELECT 1 FROM KHOA      WHERE MAKHOA = @MAKHOA)
-    BEGIN
-        SELECT -8 AS KETQUA, N'Mã khoa không tồn tại' AS THONGBAO
-        RETURN
-    END
-
     UPDATE LOPTINCHI
     SET NIENKHOA = @NIENKHOA, HOCKY = @HOCKY,
         MAMH = @MAMH, NHOM = @NHOM,
@@ -1313,7 +1088,7 @@ END
 GO
 GRANT EXECUTE ON SP_SUA_LOPTINCHI TO PUBLIC
 GO
-PRINT N'Đã tạo SP_SUA_LOPTINCHI'
+PRINT N'Đã tạo SP_SUA_LOPTINCHI (v2: validate + check trùng)'
 GO
 
 -- ------------------------------------------------------------
@@ -1332,14 +1107,15 @@ BEGIN
         SELECT -1 AS KETQUA, N'Lớp tín chỉ không tồn tại' AS THONGBAO
         RETURN
     END
-
-    -- [VALIDATE_SP_2026] Chặn xóa lớp thuộc niên khóa đã đóng băng
-    IF EXISTS (SELECT 1 FROM LOPTINCHI WHERE MALTC = @MALTC AND NIENKHOA < '2025-2026')
+    -- Chỉ không cho hủy khi đã nhập điểm cho ít nhất 1 sinh viên
+    IF EXISTS (
+        SELECT 1 FROM DANGKY 
+        WHERE MALTC = @MALTC AND (DIEM_CC IS NOT NULL OR DIEM_GK IS NOT NULL OR DIEM_CK IS NOT NULL)
+    )
     BEGIN
-        SELECT -10 AS KETQUA, N'Lớp thuộc niên khóa < 2025-2026 đã bị đóng băng, không thể xóa' AS THONGBAO
+        SELECT -2 AS KETQUA, N'Không thể hủy lớp: Đã có sinh viên được nhập điểm' AS THONGBAO
         RETURN
     END
-
     UPDATE LOPTINCHI SET HUYLOP = 1 WHERE MALTC = @MALTC
     SELECT 1 AS KETQUA, N'Hủy lớp tín chỉ thành công' AS THONGBAO
 END
@@ -1347,6 +1123,41 @@ GO
 GRANT EXECUTE ON SP_XOA_LOPTINCHI TO PUBLIC
 GO
 PRINT N'Đã tạo SP_XOA_LOPTINCHI'
+GO
+
+-- ------------------------------------------------------------
+-- SP_HOANTAC_THEM_LOPTINCHI: Hoàn tác thao tác mở LTC mới
+-- Chỉ xóa vật lý khi lớp tín chỉ chưa phát sinh đăng ký.
+-- ------------------------------------------------------------
+IF EXISTS (SELECT * FROM sys.objects WHERE name = 'SP_HOANTAC_THEM_LOPTINCHI' AND type = 'P')
+    DROP PROCEDURE SP_HOANTAC_THEM_LOPTINCHI
+GO
+CREATE PROCEDURE SP_HOANTAC_THEM_LOPTINCHI
+    @MALTC INT
+AS
+BEGIN
+    SET NOCOUNT ON
+    IF NOT EXISTS (SELECT 1 FROM LOPTINCHI WHERE MALTC = @MALTC)
+    BEGIN
+        SELECT -1 AS KETQUA, N'Lớp tín chỉ không tồn tại' AS THONGBAO
+        RETURN
+    END
+    IF EXISTS (SELECT 1 FROM DANGKY WHERE MALTC = @MALTC)
+    BEGIN
+        SELECT -2 AS KETQUA, N'Không thể hoàn tác mở lớp: lớp đã có đăng ký hoặc lịch sử điểm' AS THONGBAO
+        RETURN
+    END
+
+    DELETE FROM LOPTINCHI WHERE MALTC = @MALTC
+    SELECT 1 AS KETQUA, N'Đã hoàn tác mở lớp tín chỉ' AS THONGBAO
+END
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = 'PGV' AND type = 'R')
+    CREATE ROLE PGV
+GO
+GRANT EXECUTE ON SP_HOANTAC_THEM_LOPTINCHI TO PGV
+GO
+PRINT N'Đã tạo SP_HOANTAC_THEM_LOPTINCHI'
 GO
 
 -- ------------------------------------------------------------
@@ -1365,14 +1176,6 @@ BEGIN
         SELECT -1 AS KETQUA, N'Lớp tín chỉ không tồn tại' AS THONGBAO
         RETURN
     END
-
-    -- [VALIDATE_SP_2026] Chặn phục hồi lớp thuộc niên khóa đã đóng băng
-    IF EXISTS (SELECT 1 FROM LOPTINCHI WHERE MALTC = @MALTC AND NIENKHOA < '2025-2026')
-    BEGIN
-        SELECT -10 AS KETQUA, N'Lớp thuộc niên khóa < 2025-2026 đã bị đóng băng, không thể phục hồi' AS THONGBAO
-        RETURN
-    END
-
     UPDATE LOPTINCHI SET HUYLOP = 0 WHERE MALTC = @MALTC
     SELECT 1 AS KETQUA, N'Phục hồi lớp tín chỉ thành công' AS THONGBAO
 END
@@ -1453,6 +1256,8 @@ BEGIN
     SET NOCOUNT ON
     IF EXISTS (SELECT 1 FROM KHOA WHERE MAKHOA = @MAKHOA)
     BEGIN SELECT -1 AS KETQUA, N'Mã khoa đã tồn tại' AS THONGBAO RETURN END
+    IF EXISTS (SELECT 1 FROM KHOA WHERE TENKHOA = @TENKHOA)
+    BEGIN SELECT -2 AS KETQUA, N'Tên khoa đã tồn tại' AS THONGBAO RETURN END
     INSERT INTO KHOA (MAKHOA, TENKHOA) VALUES (@MAKHOA, @TENKHOA)
     SELECT 1 AS KETQUA, N'Thêm khoa thành công' AS THONGBAO
 END
@@ -1470,6 +1275,8 @@ BEGIN
     SET NOCOUNT ON
     IF NOT EXISTS (SELECT 1 FROM KHOA WHERE MAKHOA = @MAKHOA)
     BEGIN SELECT -1 AS KETQUA, N'Khoa không tồn tại' AS THONGBAO RETURN END
+    IF EXISTS (SELECT 1 FROM KHOA WHERE TENKHOA = @TENKHOA AND MAKHOA <> @MAKHOA)
+    BEGIN SELECT -2 AS KETQUA, N'Tên khoa đã tồn tại' AS THONGBAO RETURN END
     UPDATE KHOA SET TENKHOA = @TENKHOA WHERE MAKHOA = @MAKHOA
     SELECT 1 AS KETQUA, N'Cập nhật khoa thành công' AS THONGBAO
 END
@@ -1600,4 +1407,182 @@ GO
 GRANT EXECUTE ON SP_CHECK_MONHOC_HISTORY TO PUBLIC
 GO
 PRINT N'Đã tạo SP_CHECK_MONHOC_HISTORY'
+GO
+
+-- ============================================================
+-- SP TẠO/XÓA TÀI KHOẢN (LOGIN) CHO GIẢNG VIÊN
+-- ============================================================
+
+-- 1. TẠO ROLES NẾU CHƯA CÓ
+IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = 'PGV' AND type = 'R')
+BEGIN
+    CREATE ROLE PGV;
+    PRINT N'Đã tạo Role PGV'
+END
+GO
+-- Cấp quyền cho PGV xem được danh sách User để phục vụ tính năng "Tạo tài khoản"
+GRANT VIEW DEFINITION TO PGV;
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = 'KHOA' AND type = 'R')
+BEGIN
+    CREATE ROLE KHOA;
+    PRINT N'Đã tạo Role KHOA'
+END
+GO
+
+-- ------------------------------------------------------------
+-- SP_TAOLOGIN
+-- ------------------------------------------------------------
+IF EXISTS (SELECT * FROM sys.objects WHERE name = 'SP_TAOLOGIN' AND type = 'P')
+    DROP PROCEDURE SP_TAOLOGIN
+GO
+CREATE PROCEDURE SP_TAOLOGIN
+    @LGNAME VARCHAR(50),
+    @PASS VARCHAR(50),
+    @USERNAME VARCHAR(50),
+    @ROLE VARCHAR(50)
+AS
+BEGIN
+    SET NOCOUNT ON
+    DECLARE @RET INT
+    DECLARE @SQL NVARCHAR(MAX)
+
+    -- Kiểm tra Login đã tồn tại
+    IF EXISTS (SELECT 1 FROM sys.server_principals WHERE name = @LGNAME)
+        RETURN 1 -- Login name bị trùng
+    
+    -- Kiểm tra User đã tồn tại (một UserName - MAGV chỉ được có 1 Login)
+    IF EXISTS (SELECT 1 FROM sys.database_principals WHERE name = @USERNAME)
+        RETURN 2 -- User name (MAGV) đã có tài khoản
+
+    IF @ROLE NOT IN ('PGV', 'KHOA')
+        RETURN 3 -- Role không hợp lệ
+        
+    -- Tạo Login (dùng REPLACE để escape dấu nháy đơn, tránh SQL injection)
+    DECLARE @PASS_ESCAPED NVARCHAR(200) = REPLACE(@PASS, '''', '''''')
+    SET @SQL = N'CREATE LOGIN ' + QUOTENAME(@LGNAME) + N' WITH PASSWORD = N''' + @PASS_ESCAPED + N''', DEFAULT_DATABASE = [QLDSV_HTC], CHECK_POLICY = OFF'
+    EXEC sp_executesql @SQL
+    
+    -- Tạo User
+    SET @SQL = N'CREATE USER ' + QUOTENAME(@USERNAME) + N' FOR LOGIN ' + QUOTENAME(@LGNAME)
+    EXEC sp_executesql @SQL
+    
+    -- Phân quyền Role
+    EXEC sp_addrolemember @ROLE, @USERNAME
+    
+    -- Cấp các quyền cơ bản (giống hệ thống hiện tại)
+    SET @SQL = N'GRANT EXECUTE ON SP_DANGNHAP_GV TO ' + QUOTENAME(@USERNAME)
+    EXEC sp_executesql @SQL
+    SET @SQL = N'GRANT SELECT ON [dbo].[GIANGVIEN] TO ' + QUOTENAME(@USERNAME)
+    EXEC sp_executesql @SQL
+    SET @SQL = N'GRANT SELECT ON [dbo].[KHOA] TO ' + QUOTENAME(@USERNAME)
+    EXEC sp_executesql @SQL
+    SET @SQL = N'GRANT SELECT ON [dbo].[LOP] TO ' + QUOTENAME(@USERNAME)
+    EXEC sp_executesql @SQL
+    SET @SQL = N'GRANT SELECT ON [dbo].[SINHVIEN] TO ' + QUOTENAME(@USERNAME)
+    EXEC sp_executesql @SQL
+    SET @SQL = N'GRANT SELECT ON [dbo].[LOPTINCHI] TO ' + QUOTENAME(@USERNAME)
+    EXEC sp_executesql @SQL
+    SET @SQL = N'GRANT SELECT ON [dbo].[DANGKY] TO ' + QUOTENAME(@USERNAME)
+    EXEC sp_executesql @SQL
+    SET @SQL = N'GRANT SELECT ON [dbo].[MONHOC] TO ' + QUOTENAME(@USERNAME)
+    EXEC sp_executesql @SQL
+
+    RETURN 0
+END
+GO
+GRANT EXECUTE ON SP_TAOLOGIN TO PUBLIC
+GO
+PRINT N'Đã tạo SP_TAOLOGIN'
+GO
+
+-- ------------------------------------------------------------
+-- SP_XOALOGIN
+-- ------------------------------------------------------------
+IF EXISTS (SELECT * FROM sys.objects WHERE name = 'SP_XOALOGIN' AND type = 'P')
+    DROP PROCEDURE SP_XOALOGIN
+GO
+CREATE PROCEDURE SP_XOALOGIN
+    @LGNAME VARCHAR(50),
+    @USERNAME VARCHAR(50)
+AS
+BEGIN
+    SET NOCOUNT ON
+    DECLARE @SQL NVARCHAR(MAX)
+
+    -- Kiểm tra Login và User có tồn tại không
+    IF NOT EXISTS (SELECT 1 FROM sys.server_principals WHERE name = @LGNAME)
+        RETURN 1 -- Login không tồn tại
+        
+    IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = @USERNAME)
+        RETURN 2 -- User không tồn tại
+
+    -- Nếu user đang là member của PGV hoặc KHOA thì xóa khỏi role trước
+    IF IS_ROLEMEMBER('PGV', @USERNAME) = 1
+        EXEC sp_droprolemember 'PGV', @USERNAME
+        
+    IF IS_ROLEMEMBER('KHOA', @USERNAME) = 1
+        EXEC sp_droprolemember 'KHOA', @USERNAME
+
+    -- Xóa User khỏi database
+    SET @SQL = N'DROP USER ' + QUOTENAME(@USERNAME)
+    EXEC sp_executesql @SQL
+
+    -- Xóa Login khỏi Server
+    SET @SQL = N'DROP LOGIN ' + QUOTENAME(@LGNAME)
+    EXEC sp_executesql @SQL
+
+    RETURN 0
+END
+GO
+GRANT EXECUTE ON SP_XOALOGIN TO PUBLIC
+GO
+PRINT N'Đã tạo SP_XOALOGIN'
+
+-- ============================================================
+-- CẤP QUYỀN MẶC ĐỊNH CHO CÁC GIẢNG VIÊN CÓ SẴN (GV01-GV07)
+-- ============================================================
+DECLARE @magv VARCHAR(10)
+DECLARE cur_role CURSOR FOR SELECT MAGV FROM GIANGVIEN
+OPEN cur_role
+FETCH NEXT FROM cur_role INTO @magv
+WHILE @@FETCH_STATUS = 0
+BEGIN
+    -- Chỉ cấp quyền cho những GV đã có tài khoản (SQL User)
+    IF EXISTS (SELECT 1 FROM sys.database_principals WHERE name = @magv AND type = 'S')
+    BEGIN
+        IF @magv = 'GV01' OR @magv = 'GV02'
+            EXEC sp_addrolemember 'PGV', @magv
+        ELSE IF @magv <> 'GV08'
+            EXEC sp_addrolemember 'KHOA', @magv
+    END
+    FETCH NEXT FROM cur_role INTO @magv
+END
+CLOSE cur_role
+DEALLOCATE cur_role
+PRINT N'Đã cấp Role mặc định cho các GV có sẵn'
+GO
+
+-- ============================================================
+-- SP ĐỔI MẬT KHẨU SINH VIÊN
+-- ============================================================
+CREATE OR ALTER PROCEDURE SP_SV_DOIMATKHAU
+    @MASV VARCHAR(10),
+    @OLDPASS VARCHAR(50),
+    @NEWPASS VARCHAR(50)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    IF EXISTS (SELECT 1 FROM SINHVIEN WHERE MASV = @MASV AND PASSWORD = @OLDPASS)
+    BEGIN
+        UPDATE SINHVIEN SET PASSWORD = @NEWPASS WHERE MASV = @MASV;
+        RETURN 0; -- Thành công
+    END
+    RETURN 1; -- Sai mật khẩu cũ
+END
+GO
+GRANT EXECUTE ON SP_SV_DOIMATKHAU TO PUBLIC
+GO
+PRINT N'Đã tạo SP_SV_DOIMATKHAU'
 GO

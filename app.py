@@ -6,13 +6,11 @@ import json
 app = Flask(__name__)
 app.secret_key = 'super_secret_key_qlds'
 
-SERVER_NAME = 'localhost\\SQLEXPRESS'
+SERVER_NAME = 'localhost'
 DATABASE_NAME = 'QLDSV_HTC'
 
 SV_SHARED_LOGIN = 'sv'
 SV_SHARED_PASSWORD = '123'
-
-
 
 
 # ----------------------------------------------------------------
@@ -221,18 +219,14 @@ def login():
                         magv = row.USER_NAME.strip()
                         
                         # Lấy Database Role trực tiếp từ SQL Server
-                        cursor.execute(
-                            "SELECT R.name FROM sys.database_role_members RM "
-                            "JOIN sys.database_principals R ON RM.role_principal_id = R.principal_id "
-                            "JOIN sys.database_principals U ON RM.member_principal_id = U.principal_id "
-                            "WHERE U.name = ?",
-                            (magv,)
-                        )
+                        cursor.execute("SELECT R.name FROM sys.database_role_members RM JOIN sys.database_principals R ON RM.role_principal_id = R.principal_id JOIN sys.database_principals U ON RM.member_principal_id = U.principal_id WHERE U.name = ?", (magv,))
                         role_row = cursor.fetchone()
+                        
                         if role_row:
                             nhom = role_row.name.strip()
                         else:
-                            nhom = 'KHOA'
+                            # Mặc định an toàn hoặc fallback nếu chưa cấu hình Role trong DB
+                            nhom = 'PGV' if magv in ['GV01', 'GV05'] else 'KHOA'
                             
                         session['username'] = magv
                         session['hoten'] = row.HOTEN.strip()
@@ -242,12 +236,16 @@ def login():
                         session['khoa'] = khoa
                         session['db_login'] = username
                         session['db_pass'] = password
+                        # Lưu MAKHOA vào session để lọc dữ liệu theo khoa cho nhóm KHOA
+                        cursor.execute("SELECT MAKHOA FROM GIANGVIEN WHERE MAGV = ?", (magv,))
+                        gv_row = cursor.fetchone()
+                        session['makhoa'] = gv_row.MAKHOA.strip() if gv_row else ''
                         conn.close()
                         return redirect(url_for('dashboard'))
                     else:
                         flash('Không tìm thấy thông tin giảng viên tương ứng.')
                 except Exception as e:
-                    flash(f'Lỗi: {str(e)}')
+                    flash(f'Lỗi: {str(e)}. Đảm bảo đã chạy setup_login.sql trên SSMS.')
                 conn.close()
             else:
                 flash('Sai tài khoản hoặc mật khẩu! (SQL Server Authentication)')
@@ -272,8 +270,6 @@ def login():
                         session['role'] = 'SV'
                         session['khoa'] = khoa
                         session['malop'] = row.MALOP.strip() if hasattr(row, 'MALOP') and row.MALOP else ''
-                        # [QUA_HAN_SP_2026] Lưu cờ quá hạn từ SP_DANGNHAP_SV
-                        session['quahan'] = bool(getattr(row, 'QUAHAN', 0))
                         session['db_login'] = SV_SHARED_LOGIN
                         session['db_pass'] = SV_SHARED_PASSWORD
                         conn.close()
@@ -371,6 +367,10 @@ def can_delete():
             elif target == 'sinhvien':
                 cursor.execute("SELECT COUNT(*) FROM DANGKY WHERE MASV=?", (id_val,))
                 can = cursor.fetchone()[0] == 0
+            elif target == 'loptinchi':
+                # Chỉ không cho hủy khi đã nhập điểm cho ít nhất 1 sinh viên
+                cursor.execute("SELECT COUNT(*) FROM DANGKY WHERE MALTC=? AND (DIEM_CC IS NOT NULL OR DIEM_GK IS NOT NULL OR DIEM_CK IS NOT NULL)", (id_val,))
+                can = cursor.fetchone()[0] == 0
         except:
             can = False
         finally:
@@ -445,9 +445,9 @@ def history_undo():
             msg = f"Đã hoàn tác sửa môn học {d['mamh']}"
         # --- Hoàn tác lớp tín chỉ ---
         elif atype == 'THEM_LTC':
-            # Thêm LTC → hoàn tác = hủy lớp đó
-            cursor.execute("EXEC SP_XOA_LOPTINCHI ?", (d['maltc'],))
-            msg = f"Đã hủy lớp tín chỉ #{d['maltc']}"
+            # Thêm LTC -> hoàn tác đúng nghĩa = xóa vật lý nếu chưa phát sinh đăng ký.
+            cursor.execute("EXEC SP_HOANTAC_THEM_LOPTINCHI ?", (d['maltc'],))
+            msg = f"Đã xóa lớp tín chỉ vừa tạo #{d['maltc']}"
         elif atype == 'XOA_LTC':
             # Hủy LTC → hoàn tác = mở lại (set HUYLOP=0)
             cursor.execute("EXEC SP_PHUCHOI_LOPTINCHI ?", (d['maltc'],))
@@ -458,18 +458,53 @@ def history_undo():
                             d['mamh_cu'], d['nhom_cu'], d['magv_cu'],
                             d['makhoa_cu'], d['sosv_cu']))
             msg = f"Đã hoàn tác sửa lớp tín chỉ #{d['maltc']}"
+        # --- Hoàn tác khoa ---
+        elif atype == 'THEM_KHOA':
+            cursor.execute("EXEC SP_XOA_KHOA ?", (d['makhoa'],))
+            msg = f"Đã xóa khoa {d['makhoa']}"
+        elif atype == 'XOA_KHOA':
+            cursor.execute("EXEC SP_THEM_KHOA ?, ?",
+                           (d['makhoa'], d['tenkhoa']))
+            msg = f"Đã khôi phục khoa {d['makhoa']}"
+        elif atype == 'SUA_KHOA':
+            cursor.execute("EXEC SP_SUA_KHOA ?, ?",
+                           (d['makhoa'], d['tenkhoa_cu']))
+            msg = f"Đã hoàn tác sửa khoa {d['makhoa']}"
+        # --- Hoàn tác giảng viên ---
+        elif atype == 'THEM_GV':
+            cursor.execute("EXEC SP_XOA_GIANGVIEN ?", (d['magv'],))
+            msg = f"Đã xóa giảng viên {d['magv']}"
+        elif atype == 'XOA_GV':
+            cursor.execute("EXEC SP_THEM_GIANGVIEN ?, ?, ?, ?, ?, ?, ?",
+                           (d['magv'], d['makhoa'], d['ho'], d['ten'],
+                            d.get('hocvi'), d.get('hocham'), d.get('chuyenmon')))
+            msg = f"Đã khôi phục giảng viên {d['magv']}"
+        elif atype == 'SUA_GV':
+            cursor.execute("EXEC SP_SUA_GIANGVIEN ?, ?, ?, ?, ?, ?, ?",
+                           (d['magv'], d['makhoa_cu'], d['ho_cu'], d['ten_cu'],
+                            d.get('hocvi_cu'), d.get('hocham_cu'), d.get('chuyenmon_cu')))
+            msg = f"Đã hoàn tác sửa giảng viên {d['magv']}"
         else:
             return jsonify({'ok': False, 'msg': 'Loại hành động không hỗ trợ hoàn tác'}), 400
 
         row = cursor.fetchone()
-        conn.commit()
+        ketqua = getattr(row, 'KETQUA', None) if row else None
         thongbao = row.THONGBAO if (row and hasattr(row, 'THONGBAO')) else msg
+        if ketqua is not None and int(ketqua) <= 0:
+            conn.rollback()
+            return jsonify({'ok': False, 'msg': thongbao}), 400
+
+        conn.commit()
         # Xóa hành động đã undo khỏi history
         history.pop(idx)
         session['history'] = history
         session.modified = True
         return jsonify({'ok': True, 'msg': thongbao})
     except Exception as e:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
         return jsonify({'ok': False, 'msg': str(e)}), 500
     finally:
         conn.close()
@@ -660,7 +695,7 @@ def giangvien_xoa():
     if conn:
         try:
             cursor = conn.cursor()
-            cursor.execute("SELECT HO,TEN,MAKHOA FROM GIANGVIEN WHERE MAGV=?", (magv,))
+            cursor.execute("SELECT HO,TEN,MAKHOA,HOCVI,HOCHAM,CHUYENMON FROM GIANGVIEN WHERE MAGV=?", (magv,))
             old = cursor.fetchone()
             cursor.execute("EXEC SP_XOA_GIANGVIEN ?", (magv,))
             row = cursor.fetchone()
@@ -669,7 +704,10 @@ def giangvien_xoa():
             if row and row.KETQUA == 1 and old:
                 push_history('XOA_GV', f'Xóa GV {magv} - {old.HO.strip()} {old.TEN.strip()}',
                              {'magv': magv, 'makhoa': old.MAKHOA.strip(),
-                              'ho': old.HO.strip(), 'ten': old.TEN.strip()})
+                              'ho': old.HO.strip(), 'ten': old.TEN.strip(),
+                              'hocvi': (old.HOCVI or '').strip(),
+                              'hocham': (old.HOCHAM or '').strip(),
+                              'chuyenmon': (old.CHUYENMON or '').strip()})
         except Exception as e:
             flash(f'Lỗi: {e}')
         finally:
@@ -1042,6 +1080,7 @@ def sinhvien_ghi():
     diachi = request.form.get('diachi', '').strip()
     ngaysinh = request.form.get('ngaysinh', '') or None
     malop_sv = request.form.get('malop_sv', '').strip().upper()
+    danghihoc = 1 if request.form.get('danghihoc') == '1' else 0
     conn, _ = get_db()
     if conn:
         try:
@@ -1054,10 +1093,10 @@ def sinhvien_ghi():
                 flash(f"Lỗi: Sinh viên {masv} thuộc khóa học cũ đã bị đóng băng, không thể sửa thông tin.", "error")
                 return redirect(url_for('sinhvien_theo_lop', malop=malop))
 
-            cursor.execute("SELECT HO, TEN, PHAI, DIACHI, NGAYSINH, MALOP FROM SINHVIEN WHERE MASV=?", (masv,))
+            cursor.execute("SELECT HO, TEN, PHAI, DIACHI, NGAYSINH, MALOP, DANGHIHOC FROM SINHVIEN WHERE MASV=?", (masv,))
             old = cursor.fetchone()
-            cursor.execute("EXEC SP_SUA_SV ?, ?, ?, ?, ?, ?, ?",
-                           (masv, ho, ten, phai, diachi, ngaysinh, malop_sv))
+            cursor.execute("EXEC SP_SUA_SV ?, ?, ?, ?, ?, ?, ?, ?",
+                           (masv, ho, ten, phai, diachi, ngaysinh, malop_sv, danghihoc))
             row = cursor.fetchone()
             conn.commit()
             flash(row.THONGBAO if row else 'Cập nhật thành công.')
@@ -1127,7 +1166,11 @@ def loptinchi():
             cursor = conn.cursor()
             nk = nienkhoa if nienkhoa else None
             hk = int(hocky) if hocky else None
-            mk = makhoa_filter if makhoa_filter else None
+            # Nhóm KHOA chỉ được xem lớp của khoa mình — ép filter bất kể URL param
+            if session.get('group') == 'KHOA':
+                mk = session.get('makhoa', '')
+            else:
+                mk = makhoa_filter if makhoa_filter else None
             cursor.execute("EXEC SP_GETALL_LOPTINCHI ?, ?, ?", (nk, hk, mk))
             rows = cursor.fetchall()
             ltc_list = [{'MALTC': r.MALTC, 'NIENKHOA': r.NIENKHOA.strip(),
@@ -1180,7 +1223,9 @@ def loptinchi_them():
             if row and row.KETQUA > 0:
                 maltc = row.KETQUA
                 push_history('THEM_LTC', f'Mở lớp TC #{maltc} — {mamh} Nhóm {nhom} NK {nienkhoa} HK{hocky}',
-                             {'maltc': maltc})
+                             {'maltc': int(maltc), 'nienkhoa': nienkhoa, 'hocky': int(hocky),
+                              'mamh': mamh, 'nhom': int(nhom), 'magv': magv,
+                              'makhoa': makhoa, 'sosvtoithieu': int(sosvtoithieu)})
         except Exception as e:
             flash(f'Lỗi: {e}')
         finally:
@@ -1272,19 +1317,28 @@ def loptinchi_xoa():
 @require_group('PGV', 'KHOA')
 def nhapdiem():
     conn, _ = get_db()
-    monhoc_list, khoa_list = [], get_danh_sach_khoa()
+    monhoc_list, khoa_list, ltc_active = [], get_danh_sach_khoa(), []
     if conn:
         try:
             cursor = conn.cursor()
             cursor.execute("EXEC SP_GET_ALL_MONHOC")
             monhoc_list = [{'MAMH': r.MAMH.strip(), 'TENMH': r.TENMH.strip()} for r in cursor.fetchall()]
+            
+            cursor.execute("""
+                SELECT DISTINCT LTC.NIENKHOA, LTC.HOCKY, LTC.MAMH, LTC.NHOM, GV.HO, GV.TEN
+                FROM LOPTINCHI LTC
+                INNER JOIN DANGKY DK ON LTC.MALTC = DK.MALTC
+                LEFT JOIN GIANGVIEN GV ON LTC.MAGV = GV.MAGV
+                WHERE LTC.HUYLOP = 0 AND (DK.HUYDANGKY = 0 OR DK.HUYDANGKY IS NULL)
+            """)
+            ltc_active = [{'NK': r.NIENKHOA.strip(), 'HK': str(r.HOCKY), 'MAMH': r.MAMH.strip(), 'NHOM': str(r.NHOM), 'GV': f"{(r.HO or '').strip()} {(r.TEN or '').strip()}".strip()} for r in cursor.fetchall()]
         except Exception as e:
             flash(f'Lỗi: {e}')
         finally:
             conn.close()
     return render_template('nhapdiem.html', monhoc_list=monhoc_list,
                            khoa_list=khoa_list,
-                           nienkhoa_list=get_nienkhoa_list(),
+                           ltc_active_json=json.dumps(ltc_active),
                            hoten=session.get('hoten'), group=session.get('group'))
 
 
@@ -1303,13 +1357,20 @@ def nhapdiem_batdau():
     try:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT MALTC FROM LOPTINCHI WHERE NIENKHOA=? AND HOCKY=? AND MAMH=? AND NHOM=? AND HUYLOP=0",
-            (nienkhoa, int(hocky), mamh, int(nhom))
+            """SELECT LTC.MALTC, GV.HO, GV.TEN 
+               FROM LOPTINCHI LTC
+               LEFT JOIN GIANGVIEN GV ON LTC.MAGV = GV.MAGV
+               WHERE LTC.NIENKHOA=? AND LTC.HOCKY=? AND LTC.MAMH=? AND LTC.NHOM=? AND LTC.HUYLOP=0
+               AND (? IS NULL OR LTC.MAKHOA=?)""",
+            (nienkhoa, int(hocky), mamh, int(nhom),
+             session.get('makhoa') if session.get('group') == 'KHOA' else None,
+             session.get('makhoa') if session.get('group') == 'KHOA' else None)
         )
         ltc_row = cursor.fetchone()
         if not ltc_row:
             return jsonify({'ok': False, 'msg': 'Không tìm thấy lớp tín chỉ tương ứng'})
         maltc = ltc_row[0]
+        tengv = f"{(ltc_row[1] or '').strip()} {(ltc_row[2] or '').strip()}".strip()
         cursor.execute("EXEC SP_GET_SINHVIEN_THEO_LTC ?", (maltc,))
         rows = cursor.fetchall()
         sv_list = [{'MASV': r.MASV.strip(), 'HOTEN': r.HOTEN.strip(),
@@ -1320,7 +1381,7 @@ def nhapdiem_batdau():
         mh_row = cursor.fetchone()
         tenmh = mh_row.TENMH.strip() if mh_row else mamh
         return jsonify({'ok': True, 'maltc': maltc, 'sv_list': sv_list,
-                        'tenmh': tenmh, 'nhom': nhom, 'nienkhoa': nienkhoa, 'hocky': hocky})
+                        'tenmh': tenmh, 'tengv': tengv, 'nhom': nhom, 'nienkhoa': nienkhoa, 'hocky': hocky})
     except Exception as e:
         return jsonify({'ok': False, 'msg': str(e)}), 500
     finally:
@@ -1331,11 +1392,40 @@ def nhapdiem_batdau():
 @require_group('PGV', 'KHOA')
 def nhapdiem_ghidiem():
     """Ghi toàn bộ điểm — gọi SP_NHAP_DIEM cho từng dòng."""
-    maltc = request.form.get('maltc', 0)
+    try:
+        maltc = int(request.form.get('maltc', 0) or 0)
+    except ValueError:
+        flash('Mã lớp tín chỉ không hợp lệ.')
+        return redirect(url_for('nhapdiem'))
+
     masv_list = request.form.getlist('masv[]')
     diem_cc_list = request.form.getlist('diem_cc[]')
     diem_gk_list = request.form.getlist('diem_gk[]')
     diem_ck_list = request.form.getlist('diem_ck[]')
+
+    def parse_diem_cc(raw):
+        raw = (raw or '').strip()
+        if raw == '':
+            return None
+        value = float(raw)
+        if not value.is_integer():
+            raise ValueError('điểm CC phải là số nguyên từ 0 đến 10')
+        value = int(value)
+        if value < 0 or value > 10:
+            raise ValueError('điểm CC phải trong khoảng 0 đến 10')
+        return value
+
+    def parse_diem_half(raw, label):
+        raw = (raw or '').strip()
+        if raw == '':
+            return None
+        value = float(raw)
+        if value < 0 or value > 10:
+            raise ValueError(f'{label} phải trong khoảng 0 đến 10')
+        if abs(value * 2 - round(value * 2)) > 1e-9:
+            raise ValueError(f'{label} phải nhập theo bước 0.5')
+        return value
+
     conn, _ = get_db()
     if not conn:
         flash('Không thể kết nối DB.')
@@ -1343,22 +1433,39 @@ def nhapdiem_ghidiem():
     errors = []
     try:
         cursor = conn.cursor()
+        if session.get('group') == 'KHOA':
+            cursor.execute("SELECT MAKHOA FROM LOPTINCHI WHERE MALTC = ?", (maltc,))
+            ltc_row = cursor.fetchone()
+            if not ltc_row:
+                flash('Không tìm thấy lớp tín chỉ cần ghi điểm.')
+                return redirect(url_for('nhapdiem'))
+            if (ltc_row.MAKHOA or '').strip() != session.get('makhoa', ''):
+                flash('Không được ghi điểm lớp tín chỉ ngoài khoa của tài khoản hiện tại.')
+                return redirect(url_for('nhapdiem'))
+
         for i, masv in enumerate(masv_list):
             try:
-                cc = int(diem_cc_list[i]) if diem_cc_list[i].strip() else None
-                gk = float(diem_gk_list[i]) if diem_gk_list[i].strip() else None
-                ck = float(diem_ck_list[i]) if diem_ck_list[i].strip() else None
+                cc = parse_diem_cc(diem_cc_list[i])
+                gk = parse_diem_half(diem_gk_list[i], 'Điểm GK')
+                ck = parse_diem_half(diem_ck_list[i], 'Điểm CK')
                 cursor.execute("EXEC SP_NHAP_DIEM ?, ?, ?, ?, ?",
                                (maltc, masv.strip(), cc, gk, ck))
-                cursor.fetchone()
+                row = cursor.fetchone()
+                if row and hasattr(row, 'KETQUA') and int(row.KETQUA) <= 0:
+                    errors.append(f"{masv}: {row.THONGBAO}")
             except Exception as e:
                 errors.append(f'{masv}: {e}')
-        conn.commit()
         if errors:
+            conn.rollback()
             flash('Ghi điểm có lỗi: ' + '; '.join(errors))
         else:
+            conn.commit()
             flash('Ghi điểm thành công!')
     except Exception as e:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
         flash(f'Lỗi: {e}')
     finally:
         conn.close()
@@ -1373,12 +1480,44 @@ def nhapdiem_ghidiem():
 def dangky():
     # Chỉ lấy niên khóa thực tế đang có LTC — PGV mở lớp nào SV thấy niên khóa đó
     nk_list = get_nienkhoa_co_lop()
+
+    # Lọc niên khóa: SV chỉ thấy niên khóa phù hợp với khóa học của mình
+    masv = session.get('username', '')
+    malop_sv = session.get('malop', '')
+    filtered_nk = nk_list  # mặc định toàn bộ
+    if malop_sv:
+        conn_tmp, _ = get_db_connection(SV_SHARED_LOGIN, SV_SHARED_PASSWORD)
+        if conn_tmp:
+            try:
+                cur = conn_tmp.cursor()
+                cur.execute("SELECT KHOAHOC FROM LOP WHERE MALOP=?", (malop_sv,))
+                r = cur.fetchone()
+                if r:
+                    khoahoc = r.KHOAHOC.strip()  # VD: 2025-2029
+                    try:
+                        kh_start = int(khoahoc.split('-')[0])
+                        kh_end = int(khoahoc.split('-')[1])
+                        # SV chỉ thấy niên khóa nằm trong khoảng khóa học
+                        filtered_nk = []
+                        for nk in nk_list:
+                            try:
+                                nk_start = int(nk.split('-')[0])
+                                if kh_start <= nk_start < kh_end:
+                                    filtered_nk.append(nk)
+                            except:
+                                pass
+                    except:
+                        pass
+            except:
+                pass
+            finally:
+                conn_tmp.close()
+
     return render_template('dangky.html',
                            hoten=session.get('hoten'),
-                           masv=session.get('username'),
-                           malop=session.get('malop', ''),
-                           nienkhoa_list=nk_list,
-                           quahan=session.get('quahan', False),
+                           masv=masv,
+                           malop=malop_sv,
+                           nienkhoa_list=filtered_nk,
                            group=session.get('group'))
 
 
@@ -1420,12 +1559,28 @@ def dangky_loc():
         cursor.execute("EXEC SP_GET_LOPTINCHI_DANGKY ?, ?, ?",
                        (masv, nienkhoa, int(hocky)))
         rows = cursor.fetchall()
-        ltc_list = [{'MALTC': r.MALTC, 'MAMH': r.MAMH.strip(),
-                     'TENMH': r.TENMH.strip(), 'NHOM': r.NHOM,
-                     'TENGV': r.TENGV.strip(), 'TENKHOA': r.TENKHOA.strip(),
-                     'SOSVTOITHIEU': r.SOSVTOITHIEU, 'SOSV_DANGKY': r.SOSV_DANGKY,
-                     'DA_DANGKY': r.DA_DANGKY,
-                     'IS_FROZEN': is_frozen(nienkhoa)} for r in rows]
+        ltc_list = []
+        for r in rows:
+            item = {'MALTC': r.MALTC, 'MAMH': r.MAMH.strip(),
+                    'TENMH': r.TENMH.strip(), 'NHOM': r.NHOM,
+                    'TENGV': r.TENGV.strip(), 'TENKHOA': r.TENKHOA.strip(),
+                    'SOSVTOITHIEU': r.SOSVTOITHIEU, 'SOSV_DANGKY': r.SOSV_DANGKY,
+                    'DA_DANGKY': r.DA_DANGKY,
+                    'IS_FROZEN': is_frozen(nienkhoa)}
+            # Kiểm tra SV đã có điểm chưa (nếu đã đăng ký)
+            co_diem = False
+            if r.DA_DANGKY == 1:
+                try:
+                    cursor.execute(
+                        "SELECT DIEM_CC, DIEM_GK, DIEM_CK FROM DANGKY WHERE MALTC=? AND MASV=?",
+                        (r.MALTC, masv))
+                    dk_row = cursor.fetchone()
+                    if dk_row and (dk_row.DIEM_CC is not None or dk_row.DIEM_GK is not None or dk_row.DIEM_CK is not None):
+                        co_diem = True
+                except:
+                    pass
+            item['CO_DIEM'] = co_diem
+            ltc_list.append(item)
         return jsonify({'ok': True, 'list': ltc_list})
     except Exception as e:
         return jsonify({'ok': False, 'msg': str(e)}), 500
@@ -1445,11 +1600,7 @@ def dangky_thuchien():
         return jsonify({'ok': False, 'msg': 'Không thể kết nối DB'}), 500
     try:
         cursor = conn.cursor()
-
-        # [QUA_HAN_SP_2026] Nếu SV đã quá hạn (KHOAHOC + 7 năm) → từ chối
-        if session.get('quahan'):
-            return jsonify({'ok': False, 'msg': 'Tài khoản của bạn đã quá hạn, chỉ có thể xem phiếu điểm.'})
-
+        
         # KIỂM TRA ĐÓNG BĂNG: Không cho phép đăng ký vào niên khóa cũ (< 2025)
         cursor.execute("SELECT NIENKHOA FROM LOPTINCHI WHERE MALTC = ?", (maltc,))
         res = cursor.fetchone()
@@ -1478,11 +1629,7 @@ def dangky_huy():
         return jsonify({'ok': False, 'msg': 'Không thể kết nối DB'}), 500
     try:
         cursor = conn.cursor()
-
-        # [QUA_HAN_SP_2026] Nếu SV đã quá hạn → từ chối
-        if session.get('quahan'):
-            return jsonify({'ok': False, 'msg': 'Tài khoản của bạn đã quá hạn, không thể hủy đăng ký.'})
-
+        
         # KIỂM TRA ĐÓNG BĂNG: Không cho phép hủy lớp thuộc niên khóa cũ (< 2025)
         cursor.execute("SELECT NIENKHOA FROM LOPTINCHI WHERE MALTC = ?", (maltc,))
         res = cursor.fetchone()
@@ -1511,37 +1658,382 @@ def phieu_diem():
     masv = session.get('username', '')
     hoten = session.get('hoten', '')
     malop = session.get('malop', '')
-    quahan = session.get('quahan', False)
     conn, _ = get_db()
-    diem_list = []
+    phieu_diem_list = []
+    ngaysinh = ''
     if conn:
         try:
             cursor = conn.cursor()
+            # Lấy ngày sinh của SV
+            cursor.execute("SELECT NGAYSINH FROM SINHVIEN WHERE MASV=?", (masv,))
+            sv_row = cursor.fetchone()
+            if sv_row and sv_row.NGAYSINH:
+                ngaysinh = str(sv_row.NGAYSINH)[:10]
+
             cursor.execute("EXEC SP_XEM_PHIEU_DIEM ?", (masv,))
             rows = cursor.fetchall()
             for r in rows:
-                diem_list.append({
-                    'NIENKHOA': r.NIENKHOA.strip() if r.NIENKHOA else '',
-                    'HOCKY': r.HOCKY,
-                    'MAMH': r.MAMH.strip() if r.MAMH else '',
-                    'TENMH': r.TENMH.strip() if r.TENMH else '',
+                diem_hm = None
+                if r.DIEM_CC is not None and r.DIEM_GK is not None and r.DIEM_CK is not None:
+                    diem_hm = round(r.DIEM_CC * 0.1 + r.DIEM_GK * 0.3 + r.DIEM_CK * 0.6, 2)
+                phieu_diem_list.append({
+                    'NIENKHOA': r.NIENKHOA.strip(), 'HOCKY': r.HOCKY,
+                    'MAMH': r.MAMH.strip(), 'TENMH': r.TENMH.strip(),
                     'NHOM': r.NHOM,
-                    'TENGV': r.TENGV.strip() if r.TENGV else '',
-                    'DIEM_CC': r.DIEM_CC,
-                    'DIEM_GK': r.DIEM_GK,
-                    'DIEM_CK': r.DIEM_CK,
-                    'DIEM_TK': r.DIEM_TK
-                })
+                    'DIEM_CC': r.DIEM_CC, 'DIEM_GK': r.DIEM_GK,
+                    'DIEM_CK': r.DIEM_CK, 'DIEM_HM': diem_hm})
         except Exception as e:
             flash(f'Lỗi: {e}')
         finally:
             conn.close()
-    return render_template('phieu_diem.html',
-                           phieu_diem=diem_list,
-                           sv={'MASV': masv, 'HOTEN': hoten, 'MALOP': malop},
-                           quahan=quahan,
-                           hoten=hoten,
+    # Truyền biến sv (dict) khớp với template phieu_diem.html
+    sv_info = {'MASV': masv, 'HOTEN': hoten, 'MALOP': malop, 'NGAYSINH': ngaysinh}
+    return render_template('phieu_diem.html', phieu_diem=phieu_diem_list,
+                           sv=sv_info, masv=masv, hoten=hoten,
                            group=session.get('group'))
+
+# ----------------------------------------------------------------
+# Tạo tài khoản
+# ----------------------------------------------------------------
+@app.route('/taotaikhoan')
+@require_group('PGV', 'ADMIN')
+def taotaikhoan():
+    conn, _ = get_db()
+    gv_list = []
+    if conn:
+        try:
+            cursor = conn.cursor()
+            
+            # Lấy thông tin tài khoản hiện có từ DB
+            cursor.execute("""
+                SELECT 
+                    d.name AS MAGV,
+                    SUSER_SNAME(d.sid) AS LoginName,
+                    r.name AS RoleName
+                FROM sys.database_principals d
+                LEFT JOIN sys.database_role_members rm ON d.principal_id = rm.member_principal_id
+                LEFT JOIN sys.database_principals r ON rm.role_principal_id = r.principal_id AND r.type = 'R'
+                WHERE d.type = 'S'
+            """)
+            account_info = {}
+            for row in cursor.fetchall():
+                account_info[row.MAGV.strip()] = {
+                    'LOGIN': row.LoginName.strip() if row.LoginName else '',
+                    'ROLE': row.RoleName.strip() if row.RoleName else 'KHOA'
+                }
+                
+            # Lấy danh sách giảng viên đang dạy (ràng buộc không được xóa tài khoản)
+            cursor.execute("SELECT DISTINCT MAGV FROM LOPTINCHI WHERE MAGV IS NOT NULL")
+            teaching_magvs = [row.MAGV.strip() for row in cursor.fetchall()]
+            
+            cursor.execute("EXEC SP_GETALL_GIANGVIEN")
+            for r in cursor.fetchall():
+                magv = r.MAGV.strip()
+                has_account = magv in account_info
+                gv_list.append({
+                    'MAGV': magv,
+                    'HOTEN': r.HOTEN.strip(),
+                    'HAS_ACCOUNT': has_account,
+                    'LOGIN': account_info[magv]['LOGIN'] if has_account else '',
+                    'ROLE': account_info[magv]['ROLE'] if has_account else 'PGV',
+                    'IS_TEACHING': magv in teaching_magvs
+                })
+        except Exception as e:
+            flash(f'Lỗi load giảng viên: {e}')
+        finally:
+            conn.close()
+    return render_template('taotaikhoan.html', gv_list=gv_list, hoten=session.get('hoten'), group=session.get('group'))
+
+@app.route('/taotaikhoan/submit', methods=['POST'])
+@require_group('PGV', 'ADMIN')
+def taotaikhoan_submit():
+    data = request.get_json(silent=True) or request.form
+    lgname = data.get('lgname', '').strip()
+    password = data.get('password', '').strip()
+    magv = data.get('magv', '').strip()
+    role = data.get('role', '').strip()
+
+    if not all([lgname, password, magv, role]):
+        return jsonify({'ok': False, 'msg': 'Vui lòng nhập đầy đủ thông tin'})
+
+    conn, _ = get_db()
+    if not conn:
+        return jsonify({'ok': False, 'msg': 'Không thể kết nối DB'}), 500
+        
+    try:
+        cursor = conn.cursor()
+        cursor.execute("DECLARE @RET INT; EXEC @RET = SP_TAOLOGIN ?, ?, ?, ?; SELECT @RET AS KETQUA", (lgname, password, magv, role))
+        ret_row = cursor.fetchone()
+        ret = ret_row.KETQUA if ret_row else -1
+        
+        if ret == 0:
+            conn.commit()
+            return jsonify({'ok': True, 'msg': 'Tạo tài khoản thành công'})
+        elif ret == 1:
+            return jsonify({'ok': False, 'msg': 'Tên đăng nhập (Tài khoản) đã tồn tại!'})
+        elif ret == 2:
+            return jsonify({'ok': False, 'msg': 'Giảng viên này đã có tài khoản rồi!'})
+        elif ret == 3:
+            return jsonify({'ok': False, 'msg': 'Nhóm quyền không hợp lệ!'})
+        else:
+            return jsonify({'ok': False, 'msg': f'Lỗi không xác định (Mã lỗi: {ret})'})
+    except Exception as e:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        return jsonify({'ok': False, 'msg': str(e)}), 500
+    finally:
+        conn.close()
+
+@app.route('/taotaikhoan/check_login', methods=['POST'])
+@require_group('PGV', 'ADMIN')
+def taotaikhoan_check_login():
+    data = request.get_json(silent=True) or request.form
+    lgname = data.get('lgname', '').strip()
+    
+    if not lgname:
+        return jsonify({'exists': False})
+        
+    conn, _ = get_db()
+    if not conn:
+        return jsonify({'exists': False})
+        
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT SUSER_ID(?) AS ID", (lgname,))
+        row = cursor.fetchone()
+        exists = row.ID is not None if row else False
+        return jsonify({'exists': exists})
+    except:
+        return jsonify({'exists': False})
+    finally:
+        conn.close()
+
+# =====================================================================
+# ĐỔI MẬT KHẨU (CHUNG CHO GV & SV)
+# =====================================================================
+@app.route('/doimatkhau')
+def doimatkhau():
+    if 'username' not in session:
+        return redirect(url_for('login'))
+    return render_template('doimatkhau.html', hoten=session.get('hoten'), group=session.get('group'))
+
+@app.route('/doimatkhau/submit', methods=['POST'])
+def doimatkhau_submit():
+    if 'username' not in session:
+        return jsonify({'ok': False, 'msg': 'Hết phiên đăng nhập'})
+
+    data = request.get_json(silent=True) or request.form
+    old_pass = data.get('old_pass', '').strip()
+    new_pass = data.get('new_pass', '').strip()
+
+    if not old_pass or not new_pass:
+        return jsonify({'ok': False, 'msg': 'Vui lòng điền đủ thông tin'})
+
+    username = session['username']
+    group = session['group']
+
+    try:
+        if group == 'SV':
+            # Đối với Sinh viên: gọi SP để kiểm tra và cập nhật mật khẩu trong bảng SINHVIEN
+            conn, _ = get_db()
+            if not conn:
+                return jsonify({'ok': False, 'msg': 'Không thể kết nối DB'})
+            cursor = conn.cursor()
+            cursor.execute("DECLARE @RET INT; EXEC @RET = SP_SV_DOIMATKHAU ?, ?, ?; SELECT @RET AS KETQUA", (username, old_pass, new_pass))
+            ret_row = cursor.fetchone()
+            ret = ret_row.KETQUA if ret_row else -1
+            conn.commit()
+            conn.close()
+
+            if ret == 0:
+                return jsonify({'ok': True, 'msg': 'Đổi mật khẩu thành công'})
+            else:
+                return jsonify({'ok': False, 'msg': 'Mật khẩu cũ không chính xác'})
+
+        else:
+            # Đối với Giảng viên: dùng cơ chế ALTER LOGIN của SQL Server
+            # 1. Thử kết nối với mật khẩu cũ để xác thực (vì chỉ đổi được nếu biết mk cũ)
+            test_conn, err = get_db_connection(username, old_pass)
+            if not test_conn:
+                return jsonify({'ok': False, 'msg': 'Mật khẩu cũ không chính xác'})
+            
+            # 2. Dùng sp_executesql với tham số để tránh SQL injection từ mật khẩu chứa dấu nháy
+            cursor = test_conn.cursor()
+            safe_username = username.replace(']', ']]')
+            sql_stmt = f'ALTER LOGIN [{safe_username}] WITH PASSWORD = @P OLD_PASSWORD = @O'
+            cursor.execute(
+                "EXEC sp_executesql ?, N'@P NVARCHAR(200), @O NVARCHAR(200)', @P=?, @O=?",
+                (sql_stmt, new_pass, old_pass)
+            )
+            test_conn.commit()
+            test_conn.close()
+            
+            # Cập nhật lại session mật khẩu mới để các thao tác tiếp theo không bị văng
+            session['db_pass'] = new_pass
+            return jsonify({'ok': True, 'msg': 'Đổi mật khẩu thành công'})
+
+    except Exception as e:
+        return jsonify({'ok': False, 'msg': f'Lỗi: {str(e)}'})
+
+@app.route('/taotaikhoan/delete', methods=['POST'])
+@require_group('PGV', 'ADMIN')
+def taotaikhoan_delete():
+    data = request.get_json(silent=True) or request.form
+    lgname = data.get('lgname', '').strip()
+    magv = data.get('magv', '').strip()
+
+    if not all([lgname, magv]):
+        return jsonify({'ok': False, 'msg': 'Vui lòng nhập đầy đủ thông tin'})
+
+    conn, _ = get_db()
+    if not conn:
+        return jsonify({'ok': False, 'msg': 'Không thể kết nối DB'}), 500
+        
+    try:
+        cursor = conn.cursor()
+        
+        # Kiểm tra giảng viên có đang dạy không (Ràng buộc không được xóa)
+        cursor.execute("SELECT TOP 1 1 FROM LOPTINCHI WHERE MAGV = ?", (magv,))
+        if cursor.fetchone():
+            return jsonify({'ok': False, 'msg': 'Tài khoản đang bị ràng buộc do giảng viên đang dạy Lớp tín chỉ. Không thể xóa!'})
+            
+        cursor.execute("DECLARE @RET INT; EXEC @RET = SP_XOALOGIN ?, ?; SELECT @RET AS KETQUA", (lgname, magv))
+        ret_row = cursor.fetchone()
+        ret = ret_row.KETQUA if ret_row else -1
+        
+        if ret == 0:
+            conn.commit()
+            return jsonify({'ok': True, 'msg': 'Xóa tài khoản thành công'})
+        elif ret == 1:
+            return jsonify({'ok': False, 'msg': 'Tên đăng nhập (Tài khoản) không tồn tại!'})
+        elif ret == 2:
+            return jsonify({'ok': False, 'msg': 'Giảng viên này không có tài khoản!'})
+        else:
+            return jsonify({'ok': False, 'msg': f'Lỗi không xác định (Mã lỗi: {ret})'})
+    except Exception as e:
+        return jsonify({'ok': False, 'msg': str(e)}), 500
+    finally:
+        conn.close()
+
+
+@app.route('/baocao/dsloptinchi', methods=['GET', 'POST'])
+def in_ds_loptinchi():
+    if 'username' not in session or session.get('role') != 'GV':
+         flash('Bạn không có quyền truy cập trang này.', 'danger')
+         return redirect(url_for('dashboard'))
+
+    conn, error = get_db()
+    if not conn:
+        flash(f'Lỗi kết nối: {error}', 'danger')
+        return redirect(url_for('dashboard'))
+
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute("SELECT MAKHOA, TENKHOA FROM KHOA")
+        ds_khoa = [{'MAKHOA': row.MAKHOA.strip(), 'TENKHOA': row.TENKHOA.strip()} for row in cursor.fetchall()]
+    except Exception as e:
+        ds_khoa = []
+        flash(f"Lỗi lấy danh sách Khoa: {str(e)}", "danger")
+
+    ds_baocao = []
+    nienkhoa = request.form.get('nienkhoa', '')
+    hocky = request.form.get('hocky', '')
+    makhoa_chon = request.form.get('makhoa', session.get('khoa')) 
+
+    if request.method == 'POST' and request.form.get('action') == 'filter':
+        try:
+            cursor.execute("{CALL SP_InDanhSachLopTinChi(?, ?, ?)}", (nienkhoa, hocky, makhoa_chon))
+            rows = cursor.fetchall()
+            for r in rows:
+                ds_baocao.append({
+                    'TENMH': r.TENMH.strip(),
+                    'NHOM': r.NHOM,
+                    'HOTENGV': r.HOTENGV.strip(),
+                    'SOSVTOITHIEU': r.SOSVTOITHIEU,
+                    'SOSVDADANGKY': r.SOSVDADANGKY
+                })
+        except pyodbc.Error as e:
+            flash(f'Lỗi truy xuất dữ liệu: {e.args[1]}', 'danger')
+
+    conn.close()
+
+    tenkhoa_hienthi = next((k['TENKHOA'] for k in ds_khoa if k['MAKHOA'] == makhoa_chon), makhoa_chon)
+
+    return render_template('in_dslop_tinchi.html', 
+                           ds_khoa=ds_khoa, 
+                           ds_baocao=ds_baocao, 
+                           nienkhoa=nienkhoa, 
+                           hocky=hocky, 
+                           makhoa=makhoa_chon,
+                           tenkhoa_hienthi=tenkhoa_hienthi)
+
+@app.route('/baocao/dssv_dangky', methods=['GET', 'POST'])
+def in_dssv_dangky():
+    # Kiểm tra quyền đăng nhập
+    if 'username' not in session or session.get('role') != 'GV':
+         flash('Bạn không có quyền truy cập trang này.', 'danger')
+         return redirect(url_for('dashboard'))
+
+    conn, error = get_db()
+    if not conn:
+        flash(f'Lỗi kết nối: {error}', 'danger')
+        return redirect(url_for('dashboard'))
+
+    cursor = conn.cursor()
+    
+    # 1. Lấy danh sách Môn Học đổ vào Dropdown để chọn
+    try:
+        cursor.execute("SELECT MAMH, TENMH FROM MONHOC ORDER BY TENMH")
+        ds_monhoc = [{'MAMH': row.MAMH.strip(), 'TENMH': row.TENMH.strip()} for row in cursor.fetchall()]
+    except Exception as e:
+        ds_monhoc = []
+        flash(f"Lỗi lấy danh sách Môn học: {str(e)}", "danger")
+
+    # Các biến chứa dữ liệu báo cáo
+    ds_baocao = []
+    nienkhoa = request.form.get('nienkhoa', '')
+    hocky = request.form.get('hocky', '')
+    mamh = request.form.get('mamh', '')
+    nhom = request.form.get('nhom', '')
+    tenmh_hienthi = ''
+
+    # 2. Khi người dùng nhấn nút Trích xuất
+    if request.method == 'POST' and request.form.get('action') == 'filter':
+        try:
+            # Gọi SP vừa viết bên SQL, truyền đúng 4 tham số
+            cursor.execute("{CALL SP_InDanhSachSVDangKy(?, ?, ?, ?)}", (nienkhoa, hocky, mamh, nhom))
+            rows = cursor.fetchall()
+            for r in rows:
+                ds_baocao.append({
+                    'MASV': r.MASV.strip(),
+                    'HO': r.HO.strip(),
+                    'TEN': r.TEN.strip(),
+                    'PHAI': r.PHAI, # Chữ Nam/Nữ đã được xử lý sẵn dưới SQL
+                    'MALOP': r.MALOP.strip()
+                })
+            
+            # Tìm tên môn học dựa vào mã môn để in lên giấy
+            tenmh_hienthi = next((m['TENMH'] for m in ds_monhoc if m['MAMH'] == mamh), mamh)
+            
+            if len(ds_baocao) == 0:
+                flash('Không tìm thấy sinh viên nào đăng ký lớp này!', 'warning')
+
+        except pyodbc.Error as e:
+            flash(f'Lỗi truy xuất dữ liệu: {e.args[1]}', 'danger')
+
+    conn.close()
+
+    return render_template('in_dssv_dangky.html', 
+                           ds_monhoc=ds_monhoc, 
+                           ds_baocao=ds_baocao, 
+                           nienkhoa=nienkhoa, 
+                           hocky=hocky, 
+                           mamh=mamh,
+                           nhom=nhom,
+                           tenmh_hienthi=tenmh_hienthi)
 
 
 if __name__ == '__main__':

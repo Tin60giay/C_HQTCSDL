@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Quản lý Lớp & Sinh Viên</title>
+    <style>
+        body { font-family: 'Inter', sans-serif; background: #121212; color: #fff; padding: 20px; }
+        .container { background: #1e1e1e; padding: 20px; border-radius: 10px; max-width: 1200px; margin: auto; box-shadow: 0 4px 6px rgba(0,0,0,0.5); }
+        h2 { color: #ef4444; margin-top: 0; }
+        h3 { color: #fca5a5; font-size: 16px; border-bottom: 1px solid #444; padding-bottom: 5px; }
+        
+        .grid-2 { display: grid; grid-template-columns: 4fr 6fr; gap: 20px; margin-top: 20px; }
+        .box { background: #2d2d2d; padding: 15px; border-radius: 8px; }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
+        th, td { border: 1px solid #444; padding: 10px; text-align: left; }
+        th { background-color: #991b1b; color: white; position: sticky; top: 0; }
+        tr:nth-child(even) { background-color: #333; }
+        .table-lop tr:hover { background-color: #4b5563; cursor: pointer; transition: 0.2s; }
+        .selected-row { background-color: #7f1d1d !important; color: white; font-weight: bold; }
+        
+        input, select { background: #121212; color: white; border: 1px solid #555; padding: 8px; border-radius: 4px; box-sizing: border-box; width: 100%; margin-bottom: 5px;}
+        button { background: #dc2626; color: white; padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; width: 100%;}
+        button:hover { background: #b91c1c; }
+        
+        .alert { padding: 10px; margin-bottom: 15px; border-radius: 5px; font-weight: bold;}
+        .alert-success { background: #065f46; color: #fff; border: 1px solid #10b981; }
+        .alert-danger { background: #991b1b; color: #fff; border: 1px solid #ef4444; }
+        
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h2>📋 Quản lý Lớp & Sinh Viên</h2>
+    <p style="color: #9ca3af; margin: 0 0 15px 0;">Phân quyền: Nhóm PGV | Khoa đang chọn: <b>{{ session.khoa }}</b></p>
+    <a href="/dashboard" style="color: #60a5fa; text-decoration: none;">⬅ Quay lại Dashboard</a>
+    
+    <div style="margin-top: 15px;">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+    </div>
+
+    <div class="grid-2">
+        <div class="box">
+            <h3>Danh sách Lớp</h3>
+            <form method="POST" style="margin-bottom: 15px; border-bottom: 1px solid #444; padding-bottom: 10px;">
+                <input type="hidden" name="action" value="add_lop">
+                <div class="form-grid">
+                    <input type="text" name="malop" placeholder="Mã Lớp (VD: D20CQCN01)" required maxlength="10">
+                    <input type="text" name="khoahoc" placeholder="Khóa Học (VD: 2020-2024)" required maxlength="9">
+                </div>
+                <input type="text" name="tenlop" placeholder="Tên Lớp" required maxlength="50">
+                <button type="submit">➕ Thêm Lớp</button>
+            </form>
+
+            <div style="max-height: 400px; overflow-y: auto;">
+                <table class="table-lop">
+                    <tr><th>Mã Lớp</th><th>Tên Lớp</th><th>Khóa</th></tr>
+                    {% for lop in ds_lop %}
+                    <tr onclick="loadSinhVien('{{ lop.MALOP }}', this)">
+                        <td>{{ lop.MALOP }}</td>
+                        <td>{{ lop.TENLOP }}</td>
+                        <td>{{ lop.KHOAHOC }}</td>
+                    </tr>
+                    {% endfor %}
+                </table>
+            </div>
+        </div>
+
+        <div class="box">
+            <h3 id="lbl-sinhvien">Sinh Viên (Vui lòng click chọn 1 lớp bên trái)</h3>
+            
+            <form method="POST" id="formThemSV" style="display: none; margin-bottom: 15px; border-bottom: 1px solid #444; padding-bottom: 10px;">
+                <input type="hidden" name="action" value="add_sv">
+                <input type="hidden" name="malop_sv" id="malop_sv">
+                
+                <div class="form-grid">
+                    <input type="text" name="masv" placeholder="Mã Sinh Viên (Tối đa 10 ký tự)" required maxlength="10">
+                    <select name="phai">
+                        <option value="1">Giới tính: Nam</option>
+                        <option value="0">Giới tính: Nữ</option>
+                    </select>
+                    <input type="text" name="ho" placeholder="Họ và chữ lót" required maxlength="50">
+                    <input type="text" name="ten" placeholder="Tên" required maxlength="10">
+                    <input type="date" name="ngaysinh" required title="Ngày sinh">
+                    <input type="text" name="diachi" placeholder="Địa chỉ thường trú" maxlength="100">
+                </div>
+                <button type="submit" style="background: #2563eb;">➕ Thêm SV vào lớp đang chọn</button>
+            </form>
+
+            <div style="max-height: 400px; overflow-y: auto;">
+                <table id="table-sinhvien">
+                    <thead>
+                        <tr><th>Mã SV</th><th>Họ Tên</th><th>Phái</th><th>Ngày Sinh</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td colspan="4" style="text-align: center; color: #9ca3af;">Dữ liệu trống</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function loadSinhVien(malop, rowElement) {
+        // 1. Tô đỏ cái dòng Lớp đang click
+        let rows = document.querySelectorAll('.table-lop tr');
+        rows.forEach(r => r.classList.remove('selected-row'));
+        rowElement.classList.add('selected-row');
+
+        // 2. Mở khóa form nhập Sinh viên và đổi Tiêu đề
+        document.getElementById('lbl-sinhvien').innerHTML = 'Danh sách SV lớp: <span style="color:white">' + malop + '</span>';
+        document.getElementById('malop_sv').value = malop;
+        document.getElementById('formThemSV').style.display = 'block';
+
+        // 3. Gọi AJAX xuống Server lấy danh sách Sinh viên mượt mà
+        let tbody = document.querySelector('#table-sinhvien tbody');
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center;">Đang tải dữ liệu... ⏳</td></tr>';
+
+        fetch('/api/sinhvien/' + malop)
+            .then(response => response.json())
+            .then(data => {
+                tbody.innerHTML = ''; 
+                if (data.error) {
+                    tbody.innerHTML = '<tr><td colspan="4" style="color:red;">Lỗi tải dữ liệu</td></tr>';
+                    return;
+                }
+                if (data.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color:#9ca3af">Lớp này chưa có sinh viên nào.</td></tr>';
+                    return;
+                }
+                // Đổ dữ liệu vào bảng
+                data.forEach(sv => {
+                    let tr = `<tr>
+                        <td>${sv.MASV}</td>
+                        <td>${sv.HOTEN}</td>
+                        <td>${sv.PHAI}</td>
+                        <td>${sv.NGAYSINH}</td>
+                    </tr>`;
+                    tbody.innerHTML += tr;
+                });
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                tbody.innerHTML = '<tr><td colspan="4" style="color:red;">Lỗi mạng kết nối!</td></tr>';
+            });
+    }
+</script>
+</body>
+</html>

@@ -78,6 +78,7 @@
             <input type="text" id="filterText" oninput="locBang()" placeholder="🔍 Tìm mã/tên lớp..." style="max-width:300px;font-size:.875rem;padding:.45rem .75rem;">
         </div>
 
+        <div style="max-height:400px; overflow-y:auto;">
         <table id="tblLop">
             <thead>
                 <tr><th>Mã Lớp</th><th>Tên Lớp</th><th>Khóa Học</th><th>Khoa Quản Lý</th></tr>
@@ -99,6 +100,7 @@
             {% endfor %}
             </tbody>
         </table>
+        </div>
     </div>
 
     <div class="card" id="formCard">
@@ -282,6 +284,7 @@ function xoaTrang() {
     document.getElementById('fTENLOP').value = '';
     document.getElementById('fKHOAHOC').value = '';
     document.getElementById('fMAKHOA').selectedIndex = 0;
+    toggleFormLock(false, ['fTENLOP', 'fKHOAHOC', 'fMAKHOA']);
     updateActionButtons('idle');
     fM.focus();
 }

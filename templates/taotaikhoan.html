@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Tạo Tài Khoản</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #c01920;
+            --primary-dark: #8c1015;
+            --bg-body: #0a0a0a;
+            --bg-card: #1a1a1a;
+            --bg-input: #111;
+            --text-main: #fff;
+            --border: #3f3f46;
+            --radius: 12px;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: radial-gradient(circle at top, var(--bg-card), var(--bg-body) 70%);
+            padding: 2rem;
+            color: var(--text-main);
+            min-height: 100vh;
+        }
+
+        .container {
+            background: var(--bg-card);
+            padding: 2.5rem;
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            max-width: 700px;
+            margin: 0 auto;
+        }
+
+        h2 {
+            text-align: center;
+            color: #ff7f50;
+            text-transform: uppercase;
+            margin-bottom: 2rem;
+        }
+
+        .fg {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .fg label {
+            width: 150px;
+            font-weight: 600;
+        }
+
+        .fg input, .fg select {
+            flex: 1;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            outline: none;
+            transition: 0.3s;
+        }
+
+        .fg input:focus, .fg select:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(192, 25, 32, 0.2);
+        }
+
+        .btn {
+            flex: 1;
+            padding: 0.8rem;
+            font-size: 1.1rem;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+            text-align: center;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-dark);
+        }
+
+        .btn-danger {
+            background: #dc2626;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #b91c1c;
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: white;
+        }
+
+        .btn-outline:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+
+        .alert-error {
+            background: rgba(220, 38, 38, 0.15);
+            color: #fca5a5;
+            border: 1px solid rgba(220, 38, 38, 0.3);
+            padding: 0.8rem;
+            border-radius: 6px;
+            margin-bottom: 1.5rem;
+            display: none;
+        }
+
+        .alert-success {
+            background: rgba(34, 197, 94, 0.15);
+            color: #86efac;
+            border: 1px solid rgba(34, 197, 94, 0.3);
+            padding: 0.8rem;
+            border-radius: 6px;
+            margin-bottom: 1.5rem;
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h2>TẠO TÀI KHOẢN ĐĂNG NHẬP CHƯƠNG TRÌNH</h2>
+
+        <div id="alertBox" class="alert-error"></div>
+
+        <form id="taotaikhoanForm" onsubmit="event.preventDefault(); submitForm('submit');">
+            <div class="fg">
+                <label>Họ tên nhân viên</label>
+                <select id="selGiangVien" onchange="updateMaNV()">
+                    <option value="">-- Chọn Giảng viên --</option>
+                    {% for gv in gv_list %}
+                    <option value="{{ gv.MAGV }}" style="color: {{ 'inherit' if gv.HAS_ACCOUNT else '#22c55e' }}; font-weight: {{ 'normal' if gv.HAS_ACCOUNT else 'bold' }}">
+                        {{ '🟢 ' if not gv.HAS_ACCOUNT else '' }}{{ gv.HOTEN }}
+                    </option>
+                    {% endfor %}
+                </select>
+                <label style="width: auto; margin-left: 1rem;">Mã NV</label>
+                <input type="text" id="txtMaNV" style="max-width: 120px; background: #2a2a2a;" readonly>
+            </div>
+
+            <div class="fg">
+                <label>Tài khoản</label>
+                <input type="text" id="txtTaikhoan" required>
+            </div>
+
+            <div class="fg">
+                <label>Mật mã</label>
+                <div style="flex: 1; position: relative; display: flex;">
+                    <input type="password" id="txtMatma" required style="width: 100%;">
+                    <span id="eyeIcon" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); cursor: pointer; user-select: none;">👁️</span>
+                </div>
+            </div>
+
+            <div class="fg" style="margin-bottom: 2.5rem;">
+                <label>Nhóm quyền</label>
+                <select id="selNhomQuyen">
+                    <option value="PGV">PGV</option>
+                    <option value="KHOA">KHOA</option>
+                </select>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; gap: 1rem;">
+                <button type="submit" id="btnTao" class="btn btn-primary" disabled>Tạo tài khoản</button>
+                <button type="button" id="btnXoa" class="btn btn-danger" onclick="submitForm('delete')" disabled>Xóa tài khoản</button>
+                <button type="button" class="btn btn-outline" onclick="window.location.href='/dashboard'">Thoát</button>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        const gvData = {{ gv_list | tojson }};
+        
+        // Cài đặt icon Mắt cho mật khẩu
+        const eyeIcon = document.getElementById('eyeIcon');
+        const txtMatma = document.getElementById('txtMatma');
+        eyeIcon.addEventListener('click', () => {
+            if (txtMatma.value === '********') {
+                alert('Mật khẩu đã được SQL Server mã hóa bảo mật 1 chiều (Hash). Bạn không thể xem lại mật khẩu cũ. Bạn chỉ có thể Xóa tài khoản hoặc giữ nguyên.');
+                return;
+            }
+            if (txtMatma.type === 'password') {
+                txtMatma.type = 'text';
+                eyeIcon.textContent = '🙈';
+            } else {
+                txtMatma.type = 'password';
+                eyeIcon.textContent = '👁️';
+            }
+        });
+
+        function updateMaNV() {
+            const alertBox = document.getElementById('alertBox');
+            alertBox.style.display = 'none';
+
+            const sel = document.getElementById('selGiangVien');
+            const magv = sel.value;
+            document.getElementById('txtMaNV').value = magv;
+            
+            const txtTaikhoan = document.getElementById('txtTaikhoan');
+            const selNhomQuyen = document.getElementById('selNhomQuyen');
+            
+            const btnTao = document.getElementById('btnTao');
+            const btnXoa = document.getElementById('btnXoa');
+            
+            if (!magv) {
+                txtTaikhoan.value = '';
+                txtMatma.value = '';
+                txtMatma.disabled = false;
+                txtTaikhoan.disabled = false;
+                selNhomQuyen.disabled = false;
+                btnTao.disabled = true;
+                btnXoa.disabled = true;
+                return;
+            }
+            
+            const gvInfo = gvData.find(g => g.MAGV === magv);
+            if (gvInfo && gvInfo.HAS_ACCOUNT) {
+                txtTaikhoan.value = gvInfo.LOGIN;
+                txtMatma.value = '********';
+                selNhomQuyen.value = gvInfo.ROLE;
+                
+                // Vô hiệu hóa input vì chỉ cho phép xóa
+                txtTaikhoan.disabled = true;
+                txtMatma.disabled = true;
+                selNhomQuyen.disabled = true;
+                
+                btnTao.disabled = true; // Đã có TK thì ko tạo được
+                
+                if (gvInfo.IS_TEACHING) {
+                    btnXoa.disabled = true;
+                    showAlert('Tài khoản đang bị RÀNG BUỘC do giảng viên đang dạy Lớp tín chỉ. KHÔNG THỂ XÓA.', 'error');
+                } else {
+                    btnXoa.disabled = false;
+                    showAlert('Giảng viên này ĐÃ CÓ tài khoản. Bạn chỉ có thể Xóa tài khoản.', 'error');
+                }
+            } else {
+                txtTaikhoan.value = magv; // Gợi ý mặc định
+                txtMatma.value = '';
+                selNhomQuyen.value = 'PGV';
+                
+                txtTaikhoan.disabled = false;
+                txtMatma.disabled = false;
+                selNhomQuyen.disabled = false;
+                
+                btnTao.disabled = false; // Chưa có TK thì tạo được
+                btnXoa.disabled = true;  // Chưa có TK thì không xóa được
+                
+                // Kích hoạt check trùng lặp ban đầu
+                txtTaikhoan.dispatchEvent(new Event('input'));
+            }
+        }
+
+        let checkTimeout = null;
+        document.getElementById('txtTaikhoan').addEventListener('input', function() {
+            if (this.disabled) return;
+            
+            const lgname = this.value.trim();
+            const btnTao = document.getElementById('btnTao');
+            const alertBox = document.getElementById('alertBox');
+            
+            if (!lgname) {
+                btnTao.disabled = true;
+                alertBox.style.display = 'none';
+                return;
+            }
+
+            clearTimeout(checkTimeout);
+            checkTimeout = setTimeout(async () => {
+                try {
+                    const res = await fetch('/taotaikhoan/check_login', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ lgname })
+                    });
+                    const data = await res.json();
+                    
+                    if (data.exists) {
+                        btnTao.disabled = true;
+                        showAlert('Tên tài khoản này đã có người sử dụng! Vui lòng đặt tên khác.', 'error');
+                    } else {
+                        btnTao.disabled = false;
+                        alertBox.style.display = 'none';
+                    }
+                } catch (e) {
+                    console.error(e);
+                }
+            }, 400); // 400ms debounce
+        });
+
+        async function submitForm(action) {
+            const alertBox = document.getElementById('alertBox');
+            alertBox.style.display = 'none';
+
+            const magv = document.getElementById('txtMaNV').value;
+            const lgname = document.getElementById('txtTaikhoan').value.trim();
+            const password = document.getElementById('txtMatma').value.trim();
+            const role = document.getElementById('selNhomQuyen').value;
+
+            if (!magv) {
+                showAlert('Vui lòng chọn giảng viên!', 'error');
+                return;
+            }
+            
+            const gvInfo = gvData.find(g => g.MAGV === magv);
+
+            if (action === 'delete') {
+                if (!gvInfo.HAS_ACCOUNT) {
+                    showAlert('Giảng viên này chưa có tài khoản để xóa!', 'error');
+                    return;
+                }
+                if (!confirm('Bạn có chắc chắn muốn XÓA tài khoản này không?')) return;
+            } else {
+                if (gvInfo.HAS_ACCOUNT) {
+                    showAlert('Giảng viên này đã có tài khoản rồi, không thể tạo thêm!', 'error');
+                    return;
+                }
+                if (!lgname || !password) {
+                    showAlert('Vui lòng nhập đủ Tài khoản và Mật mã!', 'error');
+                    return;
+                }
+            }
+
+            const url = action === 'delete' ? '/taotaikhoan/delete' : '/taotaikhoan/submit';
+            
+            // Lấy lgname thực sự vì nếu disabled thì .value có thể không hoạt động chính xác tùy trình duyệt
+            const finalLgname = action === 'delete' ? gvInfo.LOGIN : lgname;
+            
+            try {
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ magv, lgname: finalLgname, password, role })
+                });
+                const data = await res.json();
+                
+                if (data.ok) {
+                    showAlert(data.msg, 'success');
+                    setTimeout(() => location.reload(), 1500); // Reload để cập nhật màu xanh
+                } else {
+                    showAlert(data.msg, 'error');
+                }
+            } catch (e) {
+                showAlert('Lỗi kết nối tới máy chủ', 'error');
+            }
+        }
+
+        function showAlert(msg, type) {
+            const alertBox = document.getElementById('alertBox');
+            alertBox.innerHTML = msg;
+            alertBox.className = type === 'error' ? 'alert-error' : 'alert-success';
+            alertBox.style.display = 'block';
+        }
+    </script>
+</body>
+</html>

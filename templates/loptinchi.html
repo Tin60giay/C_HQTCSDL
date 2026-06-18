@@ -103,11 +103,15 @@
             <button class="btn btn-outline" onclick="openHistory()" style="margin-left:auto;">🕓 Lịch sử</button>
         </div>
         {% endif %}
+        <div style="max-height:400px; overflow-y:auto;">
         <table id="tblLTC">
             <thead><tr><th>MALTC</th><th>Niên khóa</th><th>HK</th><th>Môn học</th><th>Nhóm</th><th>Giảng viên</th><th>Khoa</th><th>SV tối thiểu</th><th>Đã đăng ký</th></tr></thead>
             <tbody>
             {% for l in ltc_list %}
-            <tr class="{% if l.IS_FROZEN %}frozen-row{% endif %}" onclick="chonDong(this, '{{ l.MALTC }}', '{{ l.NIENKHOA }}', {{ l.HOCKY }}, '{{ l.MAMH }}', {{ l.NHOM }}, '{{ l.MAGV }}', '{{ l.MAKHOA }}', {{ l.SOSVTOITHIEU }}, {{ 'true' if l.IS_FROZEN else 'false' }})">
+            <tr class="{% if l.IS_FROZEN %}frozen-row{% endif %}" 
+                data-nk="{{ l.NIENKHOA }}" data-hk="{{ l.HOCKY }}" data-khoa="{{ l.MAKHOA }}" 
+                data-text="{{ l.TENMH }} {{ l.TENGV }} {{ l.MAMH }}"
+                onclick="chonDong(this, '{{ l.MALTC }}', '{{ l.NIENKHOA }}', {{ l.HOCKY }}, '{{ l.MAMH }}', {{ l.NHOM }}, '{{ l.MAGV }}', '{{ l.MAKHOA }}', {{ l.SOSVTOITHIEU }}, {{ 'true' if l.IS_FROZEN else 'false' }})">
                 <td>
                     {{ l.MALTC }}
                     {% if l.IS_FROZEN %}<span class="frozen-badge" title="Dữ liệu lịch sử đã bị đóng băng">🔒</span>{% endif %}
@@ -126,6 +130,7 @@
             {% endfor %}
             </tbody>
         </table>
+        </div>
     </div>
 
     {% if group == 'PGV' %}
@@ -207,6 +212,8 @@ function chonDong(row, maltc, nk, hk, mamh, nhom, magv, makhoa, minsv, isFrozen)
         toggleFormLock(false, ['fNK', 'fHK', 'fMAMH', 'fNHOM', 'fMAGV', 'fMAKHOA_F', 'fSOSV']);
         updateActionButtons('editing');
     }
+    
+    checkCanDelete('loptinchi', maltc);
 }
 function themMoi_ThucHien(){
     const nk=getNK();

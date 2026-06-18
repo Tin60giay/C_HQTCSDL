@@ -74,6 +74,7 @@
                 <input type="text" id="filterKhoa" oninput="locBang()" placeholder="🔍 Tìm mã hoặc tên khoa..." style="background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:.45rem .75rem;color:var(--text-main);font-family:inherit;font-size:.875rem;width:100%;max-width:360px;">
             </div>
 
+            <div style="max-height:400px; overflow-y:auto;">
             <table id="tblKhoa">
                 <thead>
                     <tr><th>Mã Khoa</th><th>Tên Khoa</th></tr>
@@ -89,6 +90,7 @@
                     {% endfor %}
                 </tbody>
             </table>
+            </div>
         </div>
 
         <div class="card" id="formCard">

@@ -13,6 +13,46 @@ const CHILD_HINT = {
   THEM_LOP: 'Hành động tạo Mới. Cần trọn vẹn xóa con trước khi hoàn tác.',
 };
 
+const HISTORY_KEY_MAP = {
+  THEM_KHOA: 'makhoa',
+  THEM_LOP: 'malop',
+  THEM_SV: 'masv',
+  THEM_MH: 'mamh',
+  THEM_GV: 'magv',
+  THEM_LTC: 'maltc',
+};
+
+const HISTORY_DEPENDENCY_RULES = [
+  { parent: 'THEM_KHOA', child: 'THEM_LOP', key: 'makhoa' },
+  { parent: 'THEM_KHOA', child: 'THEM_GV', key: 'makhoa' },
+  { parent: 'THEM_KHOA', child: 'THEM_LTC', key: 'makhoa' },
+  { parent: 'THEM_LOP', child: 'THEM_SV', key: 'malop' },
+  { parent: 'THEM_MH', child: 'THEM_LTC', key: 'mamh' },
+  { parent: 'THEM_GV', child: 'THEM_LTC', key: 'magv' },
+];
+
+function sameHistoryValue(a, b) {
+  return String(a ?? '').trim() !== '' && String(a ?? '').trim() === String(b ?? '').trim();
+}
+
+function isDependentHistoryAction(parent, child) {
+  if (!parent || !child || !parent.data || !child.data) return false;
+
+  for (const rule of HISTORY_DEPENDENCY_RULES) {
+    if (parent.type === rule.parent && child.type === rule.child &&
+        sameHistoryValue(parent.data[rule.key], child.data[rule.key])) {
+      return true;
+    }
+  }
+
+  if (parent.type && parent.type.startsWith('THEM_')) {
+    const key = HISTORY_KEY_MAP[parent.type];
+    return !!key && sameHistoryValue(parent.data[key], child.data[key]);
+  }
+
+  return false;
+}
+
 function _buildModal() {
   if (document.getElementById('historyModal')) return;
   document.body.insertAdjacentHTML('beforeend', `
@@ -53,14 +93,10 @@ async function openHistory() {
         let child = nodes[i];
         for(let j = i + 1; j < nodes.length; j++) {
             let parent = nodes[j];
-            if (parent.type.startsWith('THEM_') || parent.type.startsWith('SUA_')) {
-                const keyMap = { 'THEM_LOP': 'malop', 'THEM_SV': 'masv', 'THEM_MH': 'mamh', 'THEM_GV': 'magv' };
-                const key = keyMap[parent.type] || parent.type.split('_')[1].toLowerCase();
-                if (child.data[key] && child.data[key] === parent.data[key]) {
-                   child.isChild = true;
-                   child.parentId = j;
-                   break;
-                }
+            if (isDependentHistoryAction(parent, child)) {
+               child.isChild = true;
+               child.parentId = j;
+               break;
             }
         }
     }
@@ -99,9 +135,7 @@ async function doSingleTreeUndo(idx) {
     let blockers = [];
     for(let j = 0; j < idx; j++) {
         let check = historyDataRaw[j];
-        const pType = targetAction.type;
-        const key = pType.startsWith('THEM_') ? pType.split('_')[1].toLowerCase() : null;
-        if (key && check.data[key] && check.data[key] === targetAction.data[key]) {
+        if (isDependentHistoryAction(targetAction, check)) {
             blockers.push(j);
         }
     }
@@ -210,7 +244,8 @@ function updateActionButtons(state) {
     } else if (state === 'editing') {
         if (btnThem) btnThem.disabled = true;
         if (btnGhi) { btnGhi.disabled = false; btnGhi.dataset.formActive = 'true'; }
-        if (btnXoa) btnXoa.disabled = false;
+        // Nút Xóa giữ disabled mặc định — chờ checkCanDelete() async trả kết quả mới re-enable
+        if (btnXoa) btnXoa.disabled = true;
         if (btnHuy) btnHuy.disabled = false;
     } else if (state === 'adding') {
         if (btnThem) btnThem.disabled = window.IS_FROZEN_CONTEXT ? true : false;
@@ -269,8 +304,11 @@ function enableSaveOnInputFocus() {
     document.querySelectorAll('.form-grid input, .form-grid select, .form-grid textarea').forEach(el => {
         el.addEventListener('focus', () => {
             if (!formHasError) {
-                // Sửa lỗi: Chỉ bật nút Ghi nếu form đang ở chế độ chỉnh sửa (có chọn dòng)
-                const isSelected = typeof sel !== 'undefined' && sel !== null && sel !== '';
+                // Sửa lỗi: Kiểm tra cả sel (dùng ở khoa, lop, sinhvien, gv, ltc) 
+                // và selectedMAMH (dùng riêng ở monhoc.html)
+                const hasSel = typeof sel !== 'undefined' && sel !== null && sel !== '';
+                const hasSelectedMAMH = typeof selectedMAMH !== 'undefined' && selectedMAMH !== null && selectedMAMH !== '';
+                const isSelected = hasSel || hasSelectedMAMH;
                 const btnGhi = document.getElementById('btnGhi');
                 if (btnGhi && isSelected) {
                     btnGhi.disabled = false;
@@ -375,7 +413,10 @@ function resetValidationState(inputId) {
     if (!visibleErrors) {
         formHasError = false;
         // Tình trạng nút phụ thuộc vào việc có dữ liệu đang chọn hay không
-        const isEditing = typeof sel !== 'undefined' && sel !== null && sel !== '';
+        // Kiểm tra cả sel và selectedMAMH
+        const hasSel = typeof sel !== 'undefined' && sel !== null && sel !== '';
+        const hasSelectedMAMH = typeof selectedMAMH !== 'undefined' && selectedMAMH !== null && selectedMAMH !== '';
+        const isEditing = hasSel || hasSelectedMAMH;
         updateActionButtons(isEditing ? 'editing' : 'adding');
     }
 }
