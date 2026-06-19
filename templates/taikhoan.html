@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Tạo Tài Khoản Đăng Nhập</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #c01920;      /* PTIT Red */
+            --primary-dark: #8c1015; /* Darker PTIT Red */
+            --primary-light: #2d1314;
+            --bg-body: #0a0a0a;
+            --bg-card: #1a1a1a;
+            --bg-input: #111111;
+            --text-main: #ffffff;
+            --text-muted: #a1a1aa;
+            --border: #3f3f46;
+            --radius: 12px;
+        }
+        
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background: radial-gradient(circle at top, var(--bg-card), var(--bg-body) 70%);
+            color: var(--text-main);
+            min-height: 100vh;
+            padding: 1.5rem;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .back-link {
+            color: #f87171;
+            text-decoration: none;
+            font-size: .85rem;
+            font-weight: 600;
+        }
+
+        .alert-container {
+            margin-bottom: 1rem;
+        }
+
+        .alert {
+            padding: .65rem 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            font-size: .85rem;
+        }
+        
+        .alert-success {
+            background: rgba(34, 197, 94, 0.15);
+            border: 1px solid rgba(34, 197, 94, 0.3);
+            color: #86efac;
+        }
+        
+        .alert-error {
+            background: rgba(220, 38, 38, 0.15);
+            border: 1px solid rgba(220, 38, 38, 0.3);
+            color: #fca5a5;
+        }
+        
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+        }
+
+        @media (max-width: 768px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 1.5rem;
+        }
+
+        .card h2 {
+            font-size: 1.15rem;
+            margin-bottom: 1.25rem;
+            font-weight: 600;
+            color: var(--text-main);
+            border-bottom: 1px solid #2d2d30;
+            padding-bottom: 0.5rem;
+        }
+        
+        .card-title-center {
+            text-align: center;
+            font-size: 1.2rem;
+            color: #fca5a5;
+            margin-bottom: 1.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* Form Styles */
+        .form-group-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 1rem;
+            gap: 1rem;
+        }
+
+        .form-label {
+            width: 140px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: var(--text-muted);
+        }
+
+        .form-field-wrapper {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .form-input, .form-select {
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 0.5rem 0.75rem;
+            color: var(--text-main);
+            font-family: inherit;
+            font-size: 0.875rem;
+            flex: 1;
+            transition: border-color 0.2s;
+        }
+        
+        .form-input:focus, .form-select:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        .form-input-readonly {
+            background: #27272a;
+            color: #d4d4d8;
+            cursor: not-allowed;
+            border-color: #27272a;
+        }
+
+        .form-input-readonly-blurred {
+            opacity: 0.6;
+            background: #18181b;
+            color: #71717a;
+            cursor: not-allowed;
+        }
+
+        .chk-wrapper {
+            margin-left: 140px;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .chk-wrapper input {
+            cursor: pointer;
+        }
+
+        .btn-row {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            margin-top: 1.75rem;
+        }
+
+        .btn {
+            padding: 0.6rem 1.25rem;
+            border-radius: 8px;
+            border: 1px solid transparent;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.35rem;
+        }
+        
+        .btn:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn-primary {
+            background: linear-gradient(to right, var(--primary), var(--primary-dark));
+            color: #ffffff;
+            box-shadow: 0 4px 10px rgba(192, 25, 32, 0.25);
+        }
+
+        .btn-primary:disabled {
+            background: #3f3f46;
+            color: #a1a1aa;
+            cursor: not-allowed;
+            box-shadow: none;
+            opacity: 0.6;
+            transform: none;
+        }
+
+        .btn-warning {
+            background: #d97706;
+            color: #ffffff;
+            box-shadow: 0 4px 10px rgba(217, 119, 6, 0.25);
+        }
+
+        .btn-warning:disabled {
+            background: #3f3f46;
+            color: #a1a1aa;
+            cursor: not-allowed;
+            box-shadow: none;
+            opacity: 0.6;
+            transform: none;
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-main);
+        }
+
+        /* Accounts Table Styles */
+        .table-wrapper {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: #111111;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.83rem;
+        }
+        
+        th {
+            text-align: left;
+            padding: 0.6rem 0.75rem;
+            color: var(--text-muted);
+            border-bottom: 1px solid var(--border);
+            font-weight: 600;
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            background: #18181b;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        
+        td {
+            padding: 0.6rem 0.75rem;
+            border-bottom: 1px solid #27272a;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        tr:hover td {
+            background: #1f1f23;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+
+        .badge-pgv {
+            background: rgba(192, 25, 32, 0.15);
+            border: 1px solid rgba(192, 25, 32, 0.4);
+            color: #fca5a5;
+        }
+
+        .badge-khoa {
+            background: rgba(59, 130, 246, 0.15);
+            border: 1px solid rgba(59, 130, 246, 0.4);
+            color: #93c5fd;
+        }
+
+        .action-icon-btn {
+            background: transparent;
+            border: none;
+            color: #f87171;
+            cursor: pointer;
+            padding: 2px;
+            border-radius: 4px;
+            transition: background 0.2s;
+            font-size: 0.85rem;
+        }
+
+        .action-icon-btn:hover {
+            background: rgba(220, 38, 38, 0.15);
+            color: #ef4444;
+        }
+
+        .empty-text {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-muted);
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>🔑 Quản Trị Tài Khoản</h1>
+        <a href="/dashboard" class="back-link">← Về Dashboard</a>
+    </div>
+
+    <div class="alert-container" id="alertContainer">
+        {% with messages = get_flashed_messages() %}
+        {% if messages %}{% for m in messages %}
+        <div class="alert {% if 'thành công' in m.lower() %}alert-success{% else %}alert-error{% endif %}">{{ m }}</div>
+        {% endfor %}{% endif %}{% endwith %}
+    </div>
+
+    <div class="main-grid">
+        <!-- Form Panel -->
+        <div class="card">
+            <h2 class="card-title-center">Tạo Tài Khoản Đăng Nhập Chương Trình</h2>
+            
+            <form id="accountForm" onsubmit="return false;">
+                <!-- Họ tên nhân viên -->
+                <div class="form-group-row">
+                    <label class="form-label" for="fGV">Họ tên nhân viên</label>
+                    <div class="form-field-wrapper">
+                        <select class="form-select" id="fGV" onchange="onLecturerChange()">
+                            <option value="">-- Chọn giảng viên --</option>
+                            {% for gv in gv_list %}
+                            <option value="{{ gv.MAGV }}" 
+                                    data-hoten="{{ gv.HOTEN }}" 
+                                    data-has-acc="{{ gv.HAS_ACCOUNT }}"
+                                    data-login="{{ gv.LOGIN_NAME }}"
+                                    data-role="{{ gv.ROLE_NAME }}"
+                                    data-can-delete="{{ gv.CAN_DELETE }}">
+                                {{ gv.HOTEN }} ({% if gv.HAS_ACCOUNT == 1 %}Đã có TK: {{ gv.LOGIN_NAME }}{% else %}Chưa có TK{% endif %})
+                            </option>
+                            {% endfor %}
+
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Checkbox Lọc -->
+                <div class="chk-wrapper">
+                    <input type="checkbox" id="chkFilterNoAcc" checked onchange="toggleLecturerFilter()">
+                    <label for="chkFilterNoAcc">Chỉ hiển thị giảng viên chưa có tài khoản</label>
+                </div>
+
+                <!-- Mã NV (Mã giảng viên) -->
+                <div class="form-group-row">
+                    <label class="form-label" for="fMAGV">Mã NV</label>
+                    <div class="form-field-wrapper">
+                        <input class="form-input form-input-readonly-blurred" type="text" id="fMAGV" readonly disabled placeholder="Tự động khóa cứng">
+                    </div>
+                </div>
+
+                <!-- Tài khoản -->
+                <div class="form-group-row">
+                    <label class="form-label" for="fLogin">Tài khoản</label>
+                    <div class="form-field-wrapper">
+                        <input class="form-input" type="text" id="fLogin" placeholder="Nhập tên đăng nhập" autocomplete="off">
+                    </div>
+                </div>
+
+                <!-- Mật mã -->
+                <div class="form-group-row">
+                    <label class="form-label" for="fPass">Mật mã</label>
+                    <div class="form-field-wrapper">
+                        <input class="form-input" type="password" id="fPass" placeholder="Nhập mật khẩu" autocomplete="new-password">
+                    </div>
+                </div>
+
+                <!-- Nhóm quyền -->
+                <div class="form-group-row">
+                    <label class="form-label" for="fRole">Nhóm quyền</label>
+                    <div class="form-field-wrapper">
+                        <select class="form-select" id="fRole">
+                            {% if group == 'PGV' %}
+                            <option value="PGV">PGV</option>
+                            {% endif %}
+                            <option value="KHOA">KHOA</option>
+                        </select>
+                    </div>
+                <div id="deleteWarning" style="color: #fca5a5; font-size: 0.78rem; text-align: center; margin-top: 1rem; display: none;">
+                    ⚠️ Không thể xóa: Giảng viên đã được phân công dạy hoặc đã có điểm.
+                </div>
+
+                <!-- Buttons -->
+
+                <div class="btn-row">
+                    <button class="btn btn-primary" type="button" id="btnCreate" onclick="actionCreate()">
+                        ➕ Tạo tài khoản
+                    </button>
+                    <button class="btn btn-warning" type="button" id="btnDelete" onclick="actionDelete()" disabled>
+                        🗑️ Xóa tài khoản
+                    </button>
+                    <a class="btn btn-outline" href="/dashboard">
+                        🚪 Thoát
+                    </a>
+                </div>
+            </form>
+        </div>
+
+        <!-- List Panel -->
+        <div class="card">
+            <h2>Danh Sách Tài Khoản Hệ Thống</h2>
+            
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Mã GV</th>
+                            <th>Họ và Tên</th>
+                            <th>Khoa</th>
+                            <th>Tài Khoản</th>
+                            <th>Nhóm Quyền</th>
+                            <th style="text-align: center; width: 60px;">Xóa</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbodyAccounts">
+                        {% if accounts_list|length == 0 %}
+                        <tr>
+                            <td colspan="6" class="empty-text">Chưa có tài khoản nào được tạo hoặc không thuộc phạm vi quản lý.</td>
+                        </tr>
+                        {% else %}
+                        {% for acc in accounts_list %}
+                        <tr id="row-{{ acc.MAGV }}">
+                            <td><strong>{{ acc.MAGV }}</strong></td>
+                            <td>{{ acc.HOTEN }}</td>
+                            <td><span style="color: var(--text-muted);">{{ acc.MAKHOA }}</span></td>
+                            <td><code>{{ acc.LOGIN_NAME }}</code></td>
+                            <td>
+                                <span class="badge {% if acc.ROLE_NAME == 'PGV' %}badge-pgv{% else %}badge-khoa{% endif %}">
+                                    {{ acc.ROLE_NAME }}
+                                </span>
+                            </td>
+                            <td style="text-align: center;">
+                                {% if acc.CAN_DELETE == 1 %}
+                                <button class="action-icon-btn" onclick="directDelete('{{ acc.MAGV }}', '{{ acc.LOGIN_NAME }}')" title="Xóa tài khoản này">
+                                    🗑️
+                                </button>
+                                {% else %}
+                                <span title="Không thể xóa: Giảng viên đã được phân công dạy hoặc đã có điểm" style="cursor: not-allowed; opacity: 0.4;">🔒</span>
+                                {% endif %}
+                            </td>
+
+                        </tr>
+                        {% endfor %}
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Dữ liệu giảng viên ban đầu
+    const initialGvList = [
+        {% for gv in gv_list %}
+        {
+            magv: "{{ gv.MAGV }}",
+            hoten: "{{ gv.HOTEN }}",
+            makhoa: "{{ gv.MAKHOA }}",
+            has_acc: {{ gv.HAS_ACCOUNT }},
+            login: "{{ gv.LOGIN_NAME }}",
+            role: "{{ gv.ROLE_NAME }}",
+            can_delete: {{ gv.CAN_DELETE }}
+        },
+        {% endfor %}
+    ];
+
+    // Chạy khi khởi động trang
+    window.onload = function() {
+        toggleLecturerFilter();
+    };
+
+    // Hàm thông báo
+    function showAlert(msg, isSuccess = false) {
+        const container = document.getElementById('alertContainer');
+        container.innerHTML = `<div class="alert ${isSuccess ? 'alert-success' : 'alert-error'}">${msg}</div>`;
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    // Lọc danh sách Giảng viên theo checkbox "Chưa có tài khoản"
+    function toggleLecturerFilter() {
+        const select = document.getElementById('fGV');
+        const filterChecked = document.getElementById('chkFilterNoAcc').checked;
+        const currentSelectedValue = select.value;
+
+        // Xóa hết options
+        select.innerHTML = '<option value="">-- Chọn giảng viên --</option>';
+
+        // Thêm lại các option phù hợp
+        initialGvList.forEach(gv => {
+            if (filterChecked && gv.has_acc === 1) {
+                // Nếu bật lọc chưa có TK mà GV này ĐÃ có TK, bỏ qua
+                return;
+            }
+            const opt = document.createElement('option');
+            opt.value = gv.magv;
+            opt.textContent = `${gv.hoten} (${gv.has_acc === 1 ? 'Đã có TK: ' + gv.login : 'Chưa có TK'})`;
+            opt.setAttribute('data-hoten', gv.hoten);
+            opt.setAttribute('data-has-acc', gv.has_acc);
+            opt.setAttribute('data-login', gv.login);
+            opt.setAttribute('data-role', gv.role);
+            opt.setAttribute('data-can-delete', gv.can_delete);
+            select.appendChild(opt);
+        });
+
+        // Set lại giá trị đã chọn nếu còn tồn tại trong list
+        select.value = currentSelectedValue;
+        onLecturerChange();
+    }
+
+    // Xử lý khi chọn Giảng viên thay đổi
+    function onLecturerChange() {
+        const select = document.getElementById('fGV');
+        const selectedOpt = select.options[select.selectedIndex];
+        
+        const magvInput = document.getElementById('fMAGV');
+        const loginInput = document.getElementById('fLogin');
+        const passInput = document.getElementById('fPass');
+        const roleSelect = document.getElementById('fRole');
+        const btnCreate = document.getElementById('btnCreate');
+        const btnDelete = document.getElementById('btnDelete');
+        const deleteWarning = document.getElementById('deleteWarning');
+
+        if (!select.value) {
+            magvInput.value = '';
+            loginInput.value = '';
+            passInput.value = '';
+            loginInput.disabled = false;
+            passInput.disabled = false;
+            roleSelect.disabled = false;
+            btnCreate.disabled = false;
+            btnDelete.disabled = true;
+            deleteWarning.style.display = 'none';
+            return;
+        }
+
+        const magv = select.value;
+        const hoten = selectedOpt.getAttribute('data-hoten');
+        const hasAcc = parseInt(selectedOpt.getAttribute('data-has-acc')) === 1;
+        const loginName = selectedOpt.getAttribute('data-login');
+        const roleName = selectedOpt.getAttribute('data-role');
+        const canDelete = parseInt(selectedOpt.getAttribute('data-can-delete')) === 1;
+
+        magvInput.value = magv;
+
+        if (hasAcc) {
+            // Giảng viên ĐÃ có tài khoản => Chuyển sang View/Delete Mode
+            loginInput.value = loginName;
+            passInput.value = '********'; // Ẩn mật khẩu
+            loginInput.disabled = true;
+            passInput.disabled = true;
+            roleSelect.disabled = true;
+            
+            // Set value của role nếu có trong select options
+            if (roleName) {
+                roleSelect.value = roleName;
+            }
+
+            btnCreate.disabled = true;
+            
+            if (canDelete) {
+                btnDelete.disabled = false; // Cho phép xóa
+                deleteWarning.style.display = 'none';
+                btnDelete.removeAttribute('title');
+            } else {
+                btnDelete.disabled = true; // Làm mờ nút xóa
+                deleteWarning.style.display = 'block';
+                btnDelete.setAttribute('title', 'Không thể xóa: Giảng viên đã được phân công dạy hoặc đã có điểm');
+            }
+        } else {
+            // Giảng viên CHƯA có tài khoản => Chuyển sang Create Mode
+            loginInput.value = '';
+            passInput.value = '';
+            loginInput.disabled = false;
+            passInput.disabled = false;
+            roleSelect.disabled = false;
+
+            btnCreate.disabled = false;
+            btnDelete.disabled = true; // Tắt nút xóa
+            deleteWarning.style.display = 'none';
+        }
+    }
+
+
+    // Tạo tài khoản mới (API Request)
+    async function actionCreate() {
+        const magv = document.getElementById('fGV').value;
+        const login_name = document.getElementById('fLogin').value.trim();
+        const password = document.getElementById('fPass').value.trim();
+        const role = document.getElementById('fRole').value;
+
+        if (!magv) {
+            showAlert('Vui lòng chọn giảng viên cần tạo tài khoản.');
+            return;
+        }
+        if (!login_name) {
+            showAlert('Vui lòng nhập Tên tài khoản.');
+            return;
+        }
+        if (!password) {
+            showAlert('Vui lòng nhập Mật mã.');
+            return;
+        }
+
+        try {
+            const res = await fetch('/quantri/taikhoan/them', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ magv, login_name, password, role })
+            });
+            const data = await res.json();
+            if (data.ok) {
+                showAlert(data.msg, true);
+                // Reload lại sau 1s để cập nhật danh sách
+                setTimeout(() => window.location.reload(), 1000);
+            } else {
+                showAlert(data.msg || 'Không thể tạo tài khoản.');
+            }
+        } catch (e) {
+            showAlert('Lỗi kết nối tới máy chủ khi tạo tài khoản.');
+        }
+    }
+
+    // Xóa tài khoản (API Request)
+    async function actionDelete() {
+        const magv = document.getElementById('fMAGV').value;
+        const login_name = document.getElementById('fLogin').value.trim();
+
+        if (!magv || !login_name) {
+            showAlert('Không tìm thấy thông tin tài khoản để xóa.');
+            return;
+        }
+
+        if (!confirm(`Bạn có chắc chắn muốn xóa tài khoản đăng nhập "${login_name}" của giảng viên ${magv} không?\nHành động này không thể hoàn tác!`)) {
+            return;
+        }
+
+        try {
+            const res = await fetch('/quantri/taikhoan/xoa', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ magv, login_name })
+            });
+            const data = await res.json();
+            if (data.ok) {
+                showAlert(data.msg, true);
+                setTimeout(() => window.location.reload(), 1000);
+            } else {
+                showAlert(data.msg || 'Không thể xóa tài khoản.');
+            }
+        } catch (e) {
+            showAlert('Lỗi kết nối tới máy chủ khi xóa tài khoản.');
+        }
+    }
+
+    // Xóa tài khoản trực tiếp từ bảng danh sách
+    // Xóa tài khoản trực tiếp từ bảng danh sách
+    async function directDelete(magv, login_name) {
+        if (!magv || !login_name) {
+            showAlert('Không tìm thấy thông tin tài khoản để xóa.');
+            return;
+        }
+
+        if (!confirm(`Bạn có chắc chắn muốn xóa tài khoản đăng nhập "${login_name}" của giảng viên ${magv} không?\nHành động này không thể hoàn tác!`)) {
+            return;
+        }
+
+        try {
+            const res = await fetch('/quantri/taikhoan/xoa', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ magv, login_name })
+            });
+            const data = await res.json();
+            if (data.ok) {
+                showAlert(data.msg, true);
+                setTimeout(() => window.location.reload(), 1000);
+            } else {
+                showAlert(data.msg || 'Không thể xóa tài khoản.');
+            }
+        } catch (e) {
+            showAlert('Lỗi kết nối tới máy chủ khi xóa tài khoản.');
+        }
+    }
+
+</script>
+</body>
+</html>
