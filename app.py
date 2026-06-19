@@ -1690,6 +1690,18 @@ def quantri_taikhoan():
     if not conn:
         flash('Không thể kết nối cơ sở dữ liệu')
         return redirect(url_for('dashboard'))
+        
+    # [FALLBACK_KHOA_2026] Fallback if session['khoa'] is missing for KHOA role
+    if group == 'KHOA' and not user_khoa:
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT MAKHOA FROM GIANGVIEN WHERE MAGV = ?", (session.get('username'),))
+            row = cursor.fetchone()
+            if row:
+                user_khoa = row[0].strip().upper()
+                session['khoa'] = user_khoa
+        except Exception:
+            pass
     
     gv_list = []
     accounts_list = []
@@ -1820,6 +1832,18 @@ def quantri_taikhoan_them():
     if not conn:
         return jsonify({'ok': False, 'msg': 'Không thể kết nối cơ sở dữ liệu'}), 500
         
+    # [FALLBACK_KHOA_THEM_2026] Fallback if session['khoa'] is missing
+    if group == 'KHOA' and not user_khoa:
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT MAKHOA FROM GIANGVIEN WHERE MAGV = ?", (session.get('username'),))
+            row = cursor.fetchone()
+            if row:
+                user_khoa = row[0].strip().upper()
+                session['khoa'] = user_khoa
+        except Exception:
+            pass
+        
     try:
         import re
         cursor = conn.cursor()
@@ -1864,6 +1888,18 @@ def quantri_taikhoan_xoa():
     conn, _ = get_db()
     if not conn:
         return jsonify({'ok': False, 'msg': 'Không thể kết nối cơ sở dữ liệu'}), 500
+        
+    # [FALLBACK_KHOA_XOA_2026] Fallback if session['khoa'] is missing
+    if group == 'KHOA' and not user_khoa:
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT MAKHOA FROM GIANGVIEN WHERE MAGV = ?", (session.get('username'),))
+            row = cursor.fetchone()
+            if row:
+                user_khoa = row[0].strip().upper()
+                session['khoa'] = user_khoa
+        except Exception:
+            pass
         
     try:
         import re

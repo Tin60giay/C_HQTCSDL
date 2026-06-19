@@ -132,12 +132,15 @@ GO
 PRINT N'Đã tạo SP_DANGNHAP_SV (v2: có MALOP, TENLOP + cấp quyền đầy đủ cho [sv])'
 GO
 
---4
+--4: Chỉ tự động tạo Login + User cho các giảng viên mặc định ban đầu để test hệ thống
 DECLARE @magv NVARCHAR(10)
 DECLARE @sql NVARCHAR(MAX)
 
 DECLARE cur_gv CURSOR FOR
-    SELECT RTRIM(MAGV) FROM GIANGVIEN
+    SELECT RTRIM(MAGV) FROM (
+        VALUES ('GV01'), ('GV02'), ('GV03'), ('GV04'), ('GV05'), ('GV06'), ('GV08'), ('TSTGV09')
+    ) AS SeedGV(MAGV)
+    WHERE EXISTS (SELECT 1 FROM GIANGVIEN WHERE MAGV = SeedGV.MAGV)
 
 OPEN cur_gv
 FETCH NEXT FROM cur_gv INTO @magv
