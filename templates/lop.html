@@ -241,14 +241,16 @@ function chonDong(row, malop, tenlop, khoahoc, makhoa, isFrozen) {
         updateActionButtons('error');
     } else {
         resetValidationState('fMALOP');
+        // [PLANT_LTC_BUGS_2026] Vẫn làm mờ Mã Lớp (khóa chính) dù không frozen
+        toggleFormLock(true, ['fMALOP']);
         toggleFormLock(false, ['fTENLOP', 'fKHOAHOC', 'fMAKHOA']);
         updateActionButtons('editing');
     }
 
     const fM = document.getElementById('fMALOP');
     fM.value = malop;
-    fM.readOnly = true; // Luôn readonly cho khóa chính khi đang chọn (Edit)
-    fM.style.borderColor = isFrozen ? '#fca5a5' : 'var(--border)';
+    // [PLANT_LTC_BUGS_2026] Luôn readOnly cho khóa chính khi đang chọn (Edit)
+    applyReadonlyStyle(fM, isFrozen);
     
     document.getElementById('fTENLOP').value = tenlop;
     document.getElementById('fKHOAHOC').value = khoahoc;
@@ -278,7 +280,9 @@ function xoaTrang() {
     document.querySelectorAll('#tblLop tr').forEach(r => r.classList.remove('selected'));
     sel = null;
     const fM = document.getElementById('fMALOP');
-    fM.value = ''; fM.readOnly = false; fM.style.borderColor = 'var(--border)';
+    fM.value = '';
+    // [PLANT_LTC_BUGS_2026] Bỏ làm mờ khi tạo mới
+    clearReadonlyStyle(fM);
     document.getElementById('fTENLOP').value = '';
     document.getElementById('fKHOAHOC').value = '';
     document.getElementById('fMAKHOA').selectedIndex = 0;

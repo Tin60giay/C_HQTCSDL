@@ -153,7 +153,8 @@
             row.classList.add('selected');
             sel = makhoa;
             document.getElementById('fMAKHOA').value = makhoa;
-            document.getElementById('fMAKHOA').readOnly = true;
+            // [PLANT_LTC_BUGS_2026] Làm mờ khóa chính (không được sửa)
+            applyReadonlyStyle(document.getElementById('fMAKHOA'), false);
             document.getElementById('fTENKHOA').value = tenkhoa;
             orig = { makhoa, tenkhoa };
             updateActionButtons('editing');
@@ -201,7 +202,7 @@
             document.querySelectorAll('#tblKhoa tr').forEach(r => r.classList.remove('selected'));
             sel = null; orig = {};
             document.getElementById('fMAKHOA').value = '';
-            document.getElementById('fMAKHOA').readOnly = false;
+            clearReadonlyStyle(document.getElementById('fMAKHOA'));
             document.getElementById('fTENKHOA').value = '';
             updateActionButtons('idle');
             document.getElementById('fMAKHOA').focus();
