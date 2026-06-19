@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Backup & Restore</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #c01920; --primary-dark: #8c1015; --primary-light: #2d1314;
+            --bg-body: #0a0a0a; --bg-card: #1a1a1a; --bg-input: #111;
+            --text-main: #fff; --text-muted: #a1a1aa; --border: #3f3f46; --radius: 12px;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Inter', sans-serif; background: radial-gradient(circle at top, var(--bg-card), var(--bg-body) 70%); color: var(--text-main); min-height: 100vh; padding: 1.5rem; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border); }
+        .header h1 { font-size: 1.3rem; }
+        .btn { padding: 0.75rem 1.5rem; border-radius: 8px; border: none; font-weight: 600; font-family: inherit; cursor: pointer; font-size: 1rem; transition: opacity 0.2s, transform 0.2s; width: 100%; text-align: left; display: flex; justify-content: space-between; align-items: center;}
+        .btn:hover:not(:disabled) { opacity: 0.9; transform: translateY(-2px); }
+        .btn:disabled {
+            background: #27272a !important;
+            color: #52525b !important;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+        .btn-primary { background: linear-gradient(to right, var(--primary), var(--primary-dark)); color: #fff; }
+        .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text-main); }
+        .btn-warning { background: #b45309; color: #fff; }
+        .btn-danger { background: #7f1d1d; color: #fff; }
+        .alert { padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1rem; font-size: 0.875rem; }
+        .alert-success { background: rgba(34,197,94,0.15); border: 1px solid rgba(34,197,94,0.3); color: #86efac; }
+        .alert-error { background: rgba(220,38,38,0.15); border: 1px solid rgba(220,38,38,0.3); color: #fca5a5; }
+        .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 2rem; margin-bottom: 1.5rem; }
+        .back-link { color: #f87171; text-decoration: none; font-size: 0.85rem; font-weight: 600; }
+        .back-link:hover { text-decoration: underline; }
+        .section-desc { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.5rem; }
+        .action-group { margin-bottom: 2rem; padding-bottom: 2rem; border-bottom: 1px solid var(--border); }
+        .action-group:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
+        .action-title { font-size: 1.1rem; font-weight: 600; margin-bottom: 0.5rem; color: #fff; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>💾 Backup & Restore Database</h1>
+            <a href="/dashboard" class="back-link">← Về Dashboard</a>
+        </div>
+
+        {% with messages = get_flashed_messages() %}
+        {% if messages %}{% for m in messages %}
+        <div class="alert {% if 'thành công' in m.lower() or 'success' in m.lower() %}alert-success{% else %}alert-error{% endif %}">{{ m }}</div>
+        {% endfor %}{% endif %}
+        {% endwith %}
+
+        <div class="card">
+            <div class="action-group">
+                <div class="action-title">1. Khởi tạo Backup Device</div>
+                <div class="section-desc">Tạo thiết bị sao lưu "DEVICE_QLDSV_HTC" trỏ tới đường dẫn "C:\Backup\QLDSV_HTC.bak". Chỉ cần thực hiện lần đầu tiên.</div>
+                <form method="POST" action="/backup/create_device" onsubmit="return confirm('Bạn có chắc chắn muốn tạo Backup Device?');">
+                    <button type="submit" class="btn btn-outline">
+                        <span>⚙️ Tạo Backup Device</span>
+                        <span>→</span>
+                    </button>
+                </form>
+            </div>
+
+            <div class="action-group">
+                <div class="action-title">2a. Sao lưu toàn bộ (Backup Full)</div>
+                <div class="section-desc">Sao lưu toàn bộ dữ liệu hiện tại của hệ thống vào thiết bị đã khởi tạo. Cần tạo Backup Device trước khi sao lưu.</div>
+                <form method="POST" action="/backup/do_backup" onsubmit="return confirm('Bạn có chắc chắn muốn sao lưu dữ liệu ngay bây giờ?');">
+                    <button type="submit" class="btn btn-primary">
+                        <span>💾 Sao lưu Full Database</span>
+                        <span>→</span>
+                    </button>
+                </form>
+            </div>
+
+            <div class="action-group">
+                <div class="action-title">2b. Sao lưu Transaction Log (Backup Log)</div>
+                <div class="section-desc">Sao lưu các giao dịch phát sinh kể từ lần Full Backup gần nhất để phục hồi dữ liệu theo thời gian thực (Point-in-Time). Hệ thống tự chuyển sang FULL recovery nếu cần.</div>
+                <form method="POST" action="/backup/do_backup_log" onsubmit="return confirm('Bạn có chắc chắn muốn sao lưu Transaction Log?');">
+                    <button type="submit" class="btn btn-primary" style="background: linear-gradient(to right, #0ea5e9, #0284c7);">
+                        <span>🔄 Sao lưu Transaction Log</span>
+                        <span>→</span>
+                    </button>
+                </form>
+            </div>
+
+            <div class="action-group">
+                <div class="action-title">3a. Phục hồi toàn bộ (Restore Full)</div>
+                <div class="section-desc" style="color: #fca5a5;">CẢNH BÁO: Ghi đè toàn bộ dữ liệu bằng bản Full Backup mới nhất. Không thể hoàn tác!</div>
+                <form method="POST" action="/backup/do_restore" onsubmit="return confirmRestore();">
+                    <button type="submit" class="btn btn-danger">
+                        <span>⚠️ Phục hồi Full Database</span>
+                        <span>→</span>
+                    </button>
+                </form>
+            </div>
+
+            <div class="action-group">
+                <div class="action-title">3b. Phục hồi theo thời gian (Point-in-Time Restore)</div>
+                <div class="section-desc" style="color: #fb923c;">Phục hồi hệ thống về một thời điểm chính xác trong quá khứ. YÊU CẦU: Đã có ít nhất 1 bản Full Backup và 1 bản Log Backup.</div>
+                <form method="POST" action="/backup/do_restore_pit" onsubmit="return confirm('CẢNH BÁO:\nBạn CÓ CHẮC CHẮN muốn khôi phục dữ liệu về thời điểm này?\nMọi dữ liệu sau thời điểm này sẽ bị mất vĩnh viễn!');">
+                    <div style="margin-bottom: 1rem;">
+                        <label style="display:block; margin-bottom: 0.5rem; color: #fb923c; font-weight: 600; font-size: 0.9rem;">Chọn thời điểm khôi phục:</label>
+                        <input type="datetime-local" name="stopat_time" required step="1"
+                               style="width: 100%; padding: 0.75rem; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-input); color: var(--text-main); font-family: inherit;">
+                    </div>
+                    <button type="submit" class="btn btn-warning">
+                        <span>⏱️ Phục hồi Point-in-Time</span>
+                        <span>→</span>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function confirmRestore() {
+            let msg = 'CẢNH BÁO NGUY HIỂM!\n\nBạn đang thực hiện phục hồi (Restore) Database. Hành động này sẽ:\n1. Ngắt tất cả các kết nối của mọi người dùng khác.\n2. Ghi đè toàn bộ dữ liệu hiện tại bằng bản Backup.\n\nHành động này KHÔNG THỂ hoàn tác!\n\nBạn có chắc chắn muốn tiếp tục?';
+            if (confirm(msg)) {
+                let msg2 = 'Xác nhận lần cuối: Bạn THẬT SỰ muốn ghi đè cơ sở dữ liệu?';
+                return confirm(msg2);
+            }
+            return false;
+        }
+    </script>
+</body>
+</html>

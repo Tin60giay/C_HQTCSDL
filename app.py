@@ -6,7 +6,7 @@ import json
 app = Flask(__name__)
 app.secret_key = 'super_secret_key_qlds'
 
-SERVER_NAME = 'localhost\\SQLEXPRESS'
+SERVER_NAME = 'localhost'
 DATABASE_NAME = 'QLDSV_HTC'
 
 SV_SHARED_LOGIN = 'sv'
@@ -220,19 +220,16 @@ def login():
                     if row:
                         magv = row.USER_NAME.strip()
                         
-                        # Lấy Database Role trực tiếp từ SQL Server
-                        cursor.execute(
-                            "SELECT R.name FROM sys.database_role_members RM "
-                            "JOIN sys.database_principals R ON RM.role_principal_id = R.principal_id "
-                            "JOIN sys.database_principals U ON RM.member_principal_id = U.principal_id "
-                            "WHERE U.name = ?",
-                            (magv,)
-                        )
-                        role_row = cursor.fetchone()
-                        if role_row:
-                            nhom = role_row.name.strip()
-                        else:
+                        # Lấy Database Role chuẩn xác thông qua security context hiện tại
+                        cursor.execute("SELECT IS_MEMBER('PGV'), IS_MEMBER('KHOA')")
+                        is_pgv, is_khoa = cursor.fetchone()
+                        
+                        if is_pgv == 1:
+                            nhom = 'PGV'
+                        elif is_khoa == 1:
                             nhom = 'KHOA'
+                        else:
+                            nhom = 'KHOA' # Fallback nếu không thuộc PGV thì mặc định là KHOA
                             
                         session['username'] = magv
                         session['hoten'] = row.HOTEN.strip()
@@ -1543,6 +1540,192 @@ def phieu_diem():
                            hoten=hoten,
                            group=session.get('group'))
 
+# ----------------------------------------------------------------
+# Backup & Restore Database - PGV Only
+# ----------------------------------------------------------------
+@app.route('/backup')
+@require_group('PGV')
+def backup_page():
+    return render_template('backup.html', hoten=session.get('hoten'), group=session.get('group'))
+
+@app.route('/backup/create_device', methods=['POST'])
+@require_group('PGV')
+def create_device():
+    conn, _ = get_db()
+    if conn:
+        try:
+            conn.autocommit = True
+            cursor = conn.cursor()
+            # Kiểm tra Device đã tồn tại chưa
+            cursor.execute("SELECT name FROM sys.backup_devices WHERE name = 'DEVICE_QLDSV_HTC'")
+            if cursor.fetchone():
+                flash('Backup Device "DEVICE_QLDSV_HTC" đã tồn tại.')
+            else:
+                cursor.execute("EXEC sp_addumpdevice 'disk', 'DEVICE_QLDSV_HTC', 'C:\\Backup\\QLDSV_HTC.bak'")
+                flash('Tạo Backup Device thành công!')
+        except Exception as e:
+            flash(f'Lỗi tạo Backup Device: {e}')
+        finally:
+            conn.close()
+    else:
+        flash('Lỗi kết nối cơ sở dữ liệu.')
+    return redirect(url_for('backup_page'))
+
+@app.route('/backup/do_backup', methods=['POST'])
+@require_group('PGV')
+def do_backup():
+    conn, _ = get_db()
+    if conn:
+        try:
+            conn.autocommit = True
+            cursor = conn.cursor()
+            # Kiểm tra Device đã tồn tại chưa
+            cursor.execute("SELECT name FROM sys.backup_devices WHERE name = 'DEVICE_QLDSV_HTC'")
+            if not cursor.fetchone():
+                flash('Backup Device chưa được tạo. Vui lòng tạo Backup Device trước.')
+            else:
+                # Dùng FORMAT để tạo lại Media Header tránh lỗi corrupted file, và INIT để ghi đè
+                cursor.execute("BACKUP DATABASE QLDSV_HTC TO DEVICE_QLDSV_HTC WITH FORMAT, INIT")
+                
+                # Quan trọng: pyodbc sẽ hủy lệnh BACKUP giữa chừng nếu đóng connection ngay lập tức
+                # do lệnh BACKUP trả về nhiều messages (progress). Cần dùng nextset() để chờ SQL chạy xong.
+                while cursor.nextset():
+                    pass
+                    
+                flash('Sao lưu (Backup) Database thành công!')
+        except Exception as e:
+            flash(f'Lỗi Backup Database: {e}')
+        finally:
+            conn.close()
+    else:
+        flash('Lỗi kết nối cơ sở dữ liệu.')
+    return redirect(url_for('backup_page'))
+
+@app.route('/backup/do_restore', methods=['POST'])
+@require_group('PGV')
+def do_restore():
+    # Phục hồi Database yêu cầu quyền sysadmin/dbcreator và không được kết nối vào DB đang bị khóa
+    # Do đó, tạo một kết nối riêng tới 'master' bằng tài khoản DBA ('sa')
+    connection_string = (
+        f"DRIVER={{ODBC Driver 17 for SQL Server}};"
+        f"SERVER={SERVER_NAME};"
+        f"DATABASE=master;"
+        f"UID=sa;PWD=123"
+    )
+    
+    try:
+        conn = pyodbc.connect(connection_string, autocommit=True)
+        cursor = conn.cursor()
+        
+        # Ngắt kết nối các session khác
+        cursor.execute("ALTER DATABASE QLDSV_HTC SET SINGLE_USER WITH ROLLBACK IMMEDIATE")
+        
+        # Thực thi Restore
+        cursor.execute("RESTORE DATABASE QLDSV_HTC FROM DEVICE_QLDSV_HTC WITH REPLACE")
+        # QUAN TRỌNG: RESTORE trả về nhiều result sets (tiến trình %). 
+        # Cần loop nextset() để tránh lệnh Restore bị gián đoạn giữa chừng khiến DB bị kẹt ở trạng thái Restoring
+        while cursor.nextset():
+            pass
+            
+        # Chuyển lại MULTI_USER
+        cursor.execute("ALTER DATABASE QLDSV_HTC SET MULTI_USER")
+        flash('Phục hồi (Restore) Database thành công!')
+    except Exception as e:
+        try:
+            # Nếu xảy ra lỗi, cố gắng set lại MULTI_USER để tránh kẹt DB
+            # Hoặc khôi phục DB khỏi trạng thái Restoring (nếu nó bị kẹt)
+            cursor.execute("RESTORE DATABASE QLDSV_HTC WITH RECOVERY")
+            cursor.execute("ALTER DATABASE QLDSV_HTC SET MULTI_USER")
+        except:
+            pass
+        flash(f'Lỗi Restore Database: {e}')
+    finally:
+        if 'conn' in locals() and conn:
+            conn.close()
+            
+    return redirect(url_for('backup_page'))
+
+@app.route('/backup/do_backup_log', methods=['POST'])
+@require_group('PGV')
+def do_backup_log():
+    conn, _ = get_db()
+    if conn:
+        try:
+            conn.autocommit = True
+            cursor = conn.cursor()
+            
+            # Kiểm tra và chuyển sang FULL recovery model nếu cần
+            cursor.execute("SELECT recovery_model_desc FROM sys.databases WHERE name = 'QLDSV_HTC'")
+            row = cursor.fetchone()
+            if row and row.recovery_model_desc != 'FULL':
+                cursor.execute("ALTER DATABASE QLDSV_HTC SET RECOVERY FULL")
+                while cursor.nextset(): pass
+                
+            # Thực thi Backup Log
+            cursor.execute("BACKUP LOG QLDSV_HTC TO DISK = 'C:\\Backup\\QLDSV_HTC_LOG.trn' WITH INIT")
+            while cursor.nextset():
+                pass
+                
+            flash('Sao lưu Transaction Log thành công!')
+        except Exception as e:
+            flash(f'Lỗi Backup Log: {e}')
+        finally:
+            conn.close()
+    else:
+        flash('Lỗi kết nối cơ sở dữ liệu.')
+    return redirect(url_for('backup_page'))
+
+@app.route('/backup/do_restore_pit', methods=['POST'])
+@require_group('PGV')
+def do_restore_pit():
+    stopat_time = request.form.get('stopat_time')
+    if not stopat_time:
+        flash('Vui lòng chọn thời điểm cần phục hồi!')
+        return redirect(url_for('backup_page'))
+        
+    # Xử lý format từ HTML datetime-local (YYYY-MM-DDThh:mm:ss) sang SQL Server datetime format
+    stopat_time = stopat_time.replace('T', ' ')
+        
+    connection_string = (
+        f"DRIVER={{ODBC Driver 17 for SQL Server}};"
+        f"SERVER={SERVER_NAME};"
+        f"DATABASE=master;"
+        f"UID=sa;PWD=123"
+    )
+    
+    try:
+        conn = pyodbc.connect(connection_string, autocommit=True)
+        cursor = conn.cursor()
+        
+        # Ngắt kết nối các session khác
+        cursor.execute("ALTER DATABASE QLDSV_HTC SET SINGLE_USER WITH ROLLBACK IMMEDIATE")
+        
+        # Bước 1: Restore Full Database với NORECOVERY
+        cursor.execute("RESTORE DATABASE QLDSV_HTC FROM DEVICE_QLDSV_HTC WITH REPLACE, NORECOVERY")
+        while cursor.nextset(): 
+            pass
+            
+        # Bước 2: Restore Log với STOPAT và đưa DB về trạng thái RECOVERY
+        cursor.execute(f"RESTORE LOG QLDSV_HTC FROM DISK = 'C:\\Backup\\QLDSV_HTC_LOG.trn' WITH STOPAT = '{stopat_time}', RECOVERY")
+        while cursor.nextset(): 
+            pass
+            
+        # Chuyển lại MULTI_USER
+        cursor.execute("ALTER DATABASE QLDSV_HTC SET MULTI_USER")
+        flash(f'Phục hồi Point-in-Time (đến {stopat_time}) thành công!')
+    except Exception as e:
+        try:
+            # Cứu DB khỏi trạng thái Restoring (nếu nó bị kẹt)
+            cursor.execute("RESTORE DATABASE QLDSV_HTC WITH RECOVERY")
+            cursor.execute("ALTER DATABASE QLDSV_HTC SET MULTI_USER")
+        except:
+            pass
+        flash(f'Lỗi Restore Point-in-Time: {e}')
+    finally:
+        if 'conn' in locals() and conn:
+            conn.close()
+            
+    return redirect(url_for('backup_page'))
 
 if __name__ == '__main__':
     app.run(debug=True, port=5001)
