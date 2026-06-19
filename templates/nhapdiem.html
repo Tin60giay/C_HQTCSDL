@@ -55,28 +55,31 @@
         <div class="filter-bar">
             <div class="fg">
                 <label>Niên khóa</label>
-                <input list="nk_list" id="fNK" placeholder="Ví dụ: 2025-2026" onchange="if(!this.value) this.value=this.dataset.old; else {this.dataset.old=this.value; batDau();}" onmousedown="this.dataset.old=this.value; this.value='';" onblur="if(!this.value) this.value=this.dataset.old;" style="margin-top:.1rem;min-width:140px;">
+                <input list="nk_list" id="fNK" placeholder="Ví dụ: 2025-2026" onchange="if(!this.value) this.value=this.dataset.old; else {this.dataset.old=this.value; taiNhomList();}" onmousedown="this.dataset.old=this.value; this.value='';" onblur="if(!this.value) this.value=this.dataset.old;" style="margin-top:.1rem;min-width:140px;">
                 <datalist id="nk_list">
                     {% for nk in nienkhoa_list %}
-                    <option value="{{ nk }}">
+                    {% set nk_start = nk.split('-')[0]|int if nk and '-' in nk else 0 %}
+                    <option value="{{ nk }}">{{ nk }}{% if nk_start and nk_start < 2025 %} 🔒 (cũ){% endif %}</option>
                     {% endfor %}
                 </datalist>
             </div>
             <div class="fg"><label>Học kỳ</label>
-                <select id="fHK" onchange="batDau()">
+                <select id="fHK" onchange="taiNhomList()">
                     <option value="1">Học kỳ 1</option>
                     <option value="2">Học kỳ 2</option>
                     <option value="3">Học kỳ 3</option>
                 </select>
             </div>
             <div class="fg"><label>Môn học</label>
-                <select id="fMAMH" onchange="batDau()">
+                <select id="fMAMH" onchange="taiNhomList()">
                     {% for mh in monhoc_list %}
                     <option value="{{ mh.MAMH }}">{{ mh.TENMH }} ({{ mh.MAMH }})</option>
                     {% endfor %}
                 </select>
             </div>
-            <div class="fg"><label>Nhóm</label><input type="number" id="fNHOM" value="1" min="1" style="min-width:80px;" onchange="batDau()"></div>
+            <div class="fg"><label>Nhóm</label>
+                <select id="fNHOM" onchange="batDau()" style="min-width:80px;"></select>
+            </div>
             <button class="btn btn-outline" onclick="openHistory()" style="align-self:flex-end;">🕓 Lịch sử</button>
         </div>
         <div class="spinner" id="spinner">⏳ Đang tải danh sách sinh viên...</div>
@@ -86,7 +89,12 @@
     <!-- Bảng nhập điểm -->
     <div class="card" id="diemTable">
         <div class="info-bar" id="infoBar"></div>
-        <form id="frmDiem" method="POST" action="/nhapdiem/ghidiem">
+        <div id="frozenBanner" class="alert alert-error" style="display:none;">
+            🔒 Lớp tín chỉ thuộc niên khóa &lt; 2025-2026 đã bị đóng băng. Chỉ xem, không thể sửa điểm.
+        </div>
+        <div id="ghiErrBanner" class="alert alert-error" style="display:none;"></div>
+        <div id="ghiOkBanner" class="alert alert-success" style="display:none;"></div>
+        <div id="diemFormWrap">
             <input type="hidden" name="maltc" id="h_maltc">
             <table>
                 <thead>
@@ -101,23 +109,27 @@
                 </thead>
                 <tbody id="tbodyDiem"></tbody>
             </table>
-            <div style="margin-top:1rem;display:flex;gap:.75rem;align-items:center;">
+            <div style="margin-top:1rem;display:flex;gap:.75rem;align-items:center;flex-wrap:wrap;">
                 <button type="button" class="btn btn-success" id="btnGhiDiem" onclick="ghiDiem()">💾 Ghi điểm</button>
+                <button type="button" class="btn btn-outline" id="btnReload" onclick="batDau()" style="display:none;">↻ Tải lại</button>
                 <span id="ghiMsg" style="font-size:.82rem;font-weight:600;"></span>
             </div>
-        </form>
+        </div>
     </div>
 </div>
 <style>
     /* Bổ sung css cho disable btnGhiDiem */
     #btnGhiDiem:disabled { filter: grayscale(1); opacity: 0.4; cursor: not-allowed; pointer-events: none; }
     .error-border { border: 2px solid #fca5a5 !important; }
+    .frozen-input { background: #0e0e0e !important; color: #71717a !important;
+                    border-color: #2a2a2a !important; cursor: not-allowed !important; }
 </style>
 <script src="/static/history.js"></script>
 <script>
 let currentMALTC = null;
+let currentIsFrozen = false;
 
-async function batDau() {
+async function batDau(showSpinner = true, clearMsg = true) {
     const nk = document.getElementById('fNK').value.trim();
     const hk = document.getElementById('fHK').value;
     const mamh = document.getElementById('fMAMH').value;
@@ -126,9 +138,16 @@ async function batDau() {
     errEl.textContent = '';
 
     if (!nk) { errEl.textContent = 'Vui lòng nhập niên khóa.'; return; }
+    if (!nhom) { return; } // Nếu chưa có nhóm, dừng lại không tải danh sách
 
-    document.getElementById('spinner').style.display = 'block';
-    document.getElementById('diemTable').style.display = 'none';
+    if (showSpinner) {
+        document.getElementById('spinner').style.display = 'block';
+        document.getElementById('diemTable').style.display = 'none';
+    }
+    document.getElementById('frozenBanner').style.display = 'none';
+    document.getElementById('ghiErrBanner').style.display = 'none';
+    document.getElementById('ghiOkBanner').style.display = 'none';
+    document.getElementById('btnReload').style.display = 'none';
 
     try {
         const res = await fetch('/nhapdiem/batdau', {
@@ -137,11 +156,14 @@ async function batDau() {
             body: JSON.stringify({nienkhoa: nk, hocky: hk, mamh, nhom})
         });
         const data = await res.json();
-        document.getElementById('spinner').style.display = 'none';
+        if (showSpinner) {
+            document.getElementById('spinner').style.display = 'none';
+        }
 
         if (!data.ok) { errEl.textContent = data.msg || 'Không tìm thấy lớp tín chỉ.'; return; }
 
         currentMALTC = data.maltc;
+        currentIsFrozen = !!data.is_frozen;
         document.getElementById('h_maltc').value = currentMALTC;
 
         // Info bar
@@ -150,7 +172,8 @@ async function batDau() {
             `<span>Môn: <b>${data.tenmh}</b></span>` +
             `<span>Nhóm: <b>${data.nhom}</b></span>` +
             `<span>Niên khóa: <b>${data.nienkhoa} — HK${data.hocky}</b></span>` +
-            `<span>Số SV: <b>${data.sv_list.length}</b></span>`;
+            `<span>Số SV: <b>${data.sv_list.length}</b></span>` +
+            (currentIsFrozen ? `<span style="color:#fca5a5;">🔒 <b>Đã đóng băng (NK cũ)</b></span>` : '');
 
         // Build table rows
         const tbody = document.getElementById('tbodyDiem');
@@ -160,22 +183,81 @@ async function batDau() {
             const gk = sv.DIEM_GK != null ? sv.DIEM_GK : '';
             const ck = sv.DIEM_CK != null ? sv.DIEM_CK : '';
             const hm = calcHM(cc, gk, ck);
+            const disabled = currentIsFrozen ? 'disabled' : '';
+            const frozenCls = currentIsFrozen ? 'frozen-input' : '';
             tbody.innerHTML += `
             <tr>
-                <td><input type="hidden" name="masv[]" value="${sv.MASV}">${sv.MASV}</td>
+                <td><input type="hidden" name="masv" value="${sv.MASV}">${sv.MASV}</td>
                 <td>${sv.HOTEN}</td>
-                <td><input class="diem-input" type="number" name="diem_cc[]" value="${cc}" min="0" max="10" step="0.1" oninput="tinhHM(this)"></td>
-                <td><input class="diem-input" type="number" name="diem_gk[]" value="${gk}" min="0" max="10" step="0.1" oninput="tinhHM(this)"></td>
-                <td><input class="diem-input" type="number" name="diem_ck[]" value="${ck}" min="0" max="10" step="0.1" oninput="tinhHM(this)"></td>
+                <td><input class="diem-input ${frozenCls}" type="number" name="diem_cc" value="${cc}" min="0" max="10" step="0.1" ${disabled} oninput="tinhHM(this)"></td>
+                <td><input class="diem-input ${frozenCls}" type="number" name="diem_gk" value="${gk}" min="0" max="10" step="0.1" ${disabled} oninput="tinhHM(this)"></td>
+                <td><input class="diem-input ${frozenCls}" type="number" name="diem_ck" value="${ck}" min="0" max="10" step="0.1" ${disabled} oninput="tinhHM(this)"></td>
                 <td><input class="diem-hm" type="text" readonly value="${hm}" tabindex="-1"></td>
             </tr>`;
         });
 
         document.getElementById('diemTable').style.display = 'block';
-        document.getElementById('ghiMsg').textContent = '';
+        if (clearMsg) {
+            document.getElementById('ghiMsg').textContent = '';
+        }
+
+        // Nếu LTC thuộc NK đã đóng băng: disable nút ghi + show banner
+        const btn = document.getElementById('btnGhiDiem');
+        if (currentIsFrozen) {
+            btn.disabled = true;
+            document.getElementById('frozenBanner').style.display = 'block';
+        } else {
+            btn.disabled = false;
+            document.getElementById('frozenBanner').style.display = 'none';
+        }
     } catch(e) {
         document.getElementById('spinner').style.display = 'none';
         errEl.textContent = 'Lỗi kết nối máy chủ.';
+    }
+}
+
+async function taiNhomList() {
+    const nk = document.getElementById('fNK').value.trim();
+    const hk = document.getElementById('fHK').value;
+    const mamh = document.getElementById('fMAMH').value;
+    const nhomSelect = document.getElementById('fNHOM');
+    const errEl = document.getElementById('errMsg');
+    errEl.textContent = '';
+
+    if (!nk) return;
+
+    nhomSelect.innerHTML = '';
+    document.getElementById('diemTable').style.display = 'none';
+
+    try {
+        const res = await fetch('/nhapdiem/nhom_list', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({nienkhoa: nk, hocky: hk, mamh})
+        });
+        const data = await res.json();
+        if (data.ok) {
+            if (data.nhom_list.length === 0) {
+                const opt = document.createElement('option');
+                opt.value = '';
+                opt.textContent = '(Không có nhóm)';
+                nhomSelect.appendChild(opt);
+                errEl.textContent = 'Môn học này chưa có lớp tín chỉ nào được mở trong học kỳ/niên khóa đã chọn.';
+            } else {
+                data.nhom_list.forEach(nhom => {
+                    const opt = document.createElement('option');
+                    opt.value = nhom;
+                    opt.textContent = 'Nhóm ' + nhom;
+                    nhomSelect.appendChild(opt);
+                });
+                // Tự động load danh sách SV cho nhóm đầu tiên
+                await batDau();
+            }
+        } else {
+            errEl.textContent = data.msg || 'Không thể tải danh sách nhóm.';
+        }
+    } catch(e) {
+        errEl.textContent = 'Lỗi kết nối máy chủ khi tải danh sách nhóm.';
     }
 }
 
@@ -189,7 +271,7 @@ function calcHM(cc, gk, ck) {
 function tinhHM(el) {
     const row = el.closest('tr');
     const inputs = row.querySelectorAll('.diem-input');
-    
+
     // Quét Validate toàn cục
     let hasError = false;
     document.querySelectorAll('.diem-input').forEach(inp => {
@@ -213,22 +295,115 @@ function tinhHM(el) {
         msg.style.color = '#fca5a5';
         btn.disabled = true;
     } else {
-        msg.textContent = '';
-        btn.disabled = false;
+        if (!msg.textContent || msg.textContent === '❌ Điểm thành phần từ 0 -> 10. Vui lòng sửa lỗi viền đỏ.') {
+            msg.textContent = '';
+        }
+        if (!currentIsFrozen) btn.disabled = false;
         const hm = calcHM(inputs[0].value, inputs[1].value, inputs[2].value);
         row.querySelector('.diem-hm').value = hm;
     }
 }
 
-function ghiDiem() {
+async function ghiDiem() {
     if (!currentMALTC) return;
     const btn = document.getElementById('btnGhiDiem');
     if (btn.disabled) return;
+    if (currentIsFrozen) {
+        document.getElementById('frozenBanner').style.display = 'block';
+        return;
+    }
+
+    // Gom dữ liệu từ DOM
+    const masv_list = [], diem_cc_list = [], diem_gk_list = [], diem_ck_list = [];
+    document.querySelectorAll('#tbodyDiem tr').forEach(row => {
+        const masv = row.querySelector('input[name="masv"]');
+        if (!masv) return;
+        masv_list.push(masv.value);
+        const ins = row.querySelectorAll('input[name^="diem_"]');
+        diem_cc_list.push(ins[0] ? ins[0].value : '');
+        diem_gk_list.push(ins[1] ? ins[1].value : '');
+        diem_ck_list.push(ins[2] ? ins[2].value : '');
+    });
+
     const msg = document.getElementById('ghiMsg');
+    const errBanner = document.getElementById('ghiErrBanner');
+    const okBanner = document.getElementById('ghiOkBanner');
+    errBanner.style.display = 'none';
+    okBanner.style.display = 'none';
+
     msg.style.color = '#a1a1aa';
     msg.textContent = 'Đang lưu...';
-    document.getElementById('frmDiem').submit();
+    btn.disabled = true;
+
+    try {
+        const res = await fetch('/nhapdiem/ghidiem', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                maltc: currentMALTC,
+                masv_list, diem_cc_list, diem_gk_list, diem_ck_list
+            })
+        });
+        const data = await res.json();
+        btn.disabled = false;
+
+        if (!data.ok) {
+            errBanner.textContent = '❌ Lỗi: ' + (data.msg || 'Không xác định');
+            errBanner.style.display = 'block';
+            msg.textContent = '';
+            return;
+        }
+
+        const ok = data.success_count || 0;
+        const errs = data.errors || [];
+        const total = data.total || masv_list.length;
+
+        if (errs.length === 0) {
+            msg.style.color = '#86efac';
+            msg.textContent = `✅ Đã lưu ${ok}/${total} sinh viên thành công.`;
+            okBanner.textContent = `✅ Ghi điểm thành công cho ${ok}/${total} sinh viên.`;
+            okBanner.style.display = 'block';
+            // Tải lại dữ liệu từ server để đồng bộ ngầm
+            await batDau(false, false);
+        } else {
+            // Có lỗi - KHÔNG xóa dữ liệu, hiển thị chi tiết
+            const errTxt = errs.map(e => `${e.masv}: ${e.msg}`).join(' | ');
+            msg.style.color = '#fca5a5';
+            msg.textContent = `⚠ Lưu ${ok}/${total} - ${errs.length} lỗi.`;
+            errBanner.innerHTML = `❌ Lưu thành công ${ok}/${total} sinh viên. ${errs.length} lỗi:<br><span style="font-size:.78rem;font-family:monospace;">${errTxt}</span>`;
+            errBanner.style.display = 'block';
+            // Vẫn giữ form, không reload
+        }
+    } catch (e) {
+        btn.disabled = false;
+        errBanner.textContent = '❌ Lỗi kết nối máy chủ: ' + e;
+        errBanner.style.display = 'block';
+        msg.textContent = '';
+    }
 }
+
+document.addEventListener('DOMContentLoaded', () => {
+    // Tự động chọn niên khóa hợp lệ đầu tiên (thường là mới nhất không bị khóa)
+    const nkList = document.getElementById('nk_list');
+    const fNK = document.getElementById('fNK');
+    if (nkList && nkList.options.length > 0 && !fNK.value) {
+        let defaultVal = '';
+        // Duyệt ngược từ cuối datalist để lấy niên khóa mới nhất không bị khóa
+        for (let i = nkList.options.length - 1; i >= 0; i--) {
+            const val = nkList.options[i].value;
+            if (!val.includes('🔒')) {
+                defaultVal = val;
+                break;
+            }
+        }
+        if (!defaultVal && nkList.options.length > 0) {
+            defaultVal = nkList.options[nkList.options.length - 1].value;
+        }
+        fNK.value = defaultVal;
+        fNK.dataset.old = defaultVal;
+    }
+    taiNhomList();
+});
 </script>
 </body>
 </html>

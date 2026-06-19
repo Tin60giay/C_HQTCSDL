@@ -451,14 +451,16 @@
                 updateActionButtons('error');
             } else {
                 resetValidationState('fMASV');
+                // [PLANT_LTC_BUGS_2026] Vẫn làm mờ Mã SV (khóa chính) dù không frozen
+                toggleFormLock(true, ['fMASV']);
                 toggleFormLock(false, ['fHO', 'fTEN', 'fPHAI', 'fNGAY', 'fDIACHI', 'fMALOP']);
                 updateActionButtons('editing');
             }
 
             const fM = document.getElementById('fMASV');
             fM.value = masv;
-            fM.readOnly = true;
-            fM.style.borderColor = isFrozen ? '#fca5a5' : 'var(--border)';
+            // [PLANT_LTC_BUGS_2026] Luôn readOnly + mờ cho khóa chính
+            applyReadonlyStyle(fM, isFrozen);
             
             document.getElementById('fHO').value = ho;
             document.getElementById('fTEN').value = ten;
@@ -528,7 +530,9 @@
             document.querySelectorAll('#tblSV tr').forEach(r => r.classList.remove('selected'));
             sel = null;
             const fM = document.getElementById('fMASV');
-            fM.value = ''; fM.readOnly = false; fM.style.borderColor = 'var(--border)';
+            fM.value = '';
+            // [PLANT_LTC_BUGS_2026] Bỏ làm mờ khi tạo mới
+            clearReadonlyStyle(fM);
             document.getElementById('fHO').value = '';
             document.getElementById('fTEN').value = '';
             document.getElementById('fPHAI').selectedIndex = 0;
