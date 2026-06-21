@@ -302,6 +302,7 @@ function toggleFormLock(isLocked, inputIds) {
                 el.style.backgroundColor = 'rgba(39, 39, 42, 0.4)';
                 el.style.color = '#52525b';
                 el.style.borderColor = '#fca5a5';
+                el.style.cursor = 'not-allowed';
             } else {
                 el.style.backgroundColor = '';
                 el.style.color = '';
@@ -309,6 +310,40 @@ function toggleFormLock(isLocked, inputIds) {
             }
         }
     });
+}
+
+/**
+ * [PLANT_LTC_BUGS_2026] Áp dụng style làm mờ cho 1 trường readOnly
+ * (khóa chính). Dùng khi chọn dòng để sửa - mã không được sửa nhưng
+ * phải có giao diện mờ để user biết là không chỉnh được.
+ */
+function applyReadonlyStyle(el, isFrozen) {
+    if (!el) return;
+    el.readOnly = true;
+    if (el.tagName === 'SELECT') {
+        el.disabled = true;
+    }
+    el.style.backgroundColor = 'rgba(39, 39, 42, 0.4)';
+    el.style.color = '#52525b';
+    el.style.borderColor = isFrozen ? '#fca5a5' : '#52525b';
+    el.style.cursor = 'not-allowed';
+    el.title = isFrozen ? '🔒 Dữ liệu lịch sử đã bị đóng băng' : '🔒 Khóa chính - không thể chỉnh sửa';
+}
+
+/**
+ * [PLANT_LTC_BUGS_2026] Xóa style làm mờ khi tạo mới
+ */
+function clearReadonlyStyle(el) {
+    if (!el) return;
+    el.readOnly = false;
+    if (el.tagName === 'SELECT') {
+        el.disabled = false;
+    }
+    el.style.backgroundColor = '';
+    el.style.color = '';
+    el.style.borderColor = 'var(--border)';
+    el.style.cursor = '';
+    el.title = '';
 }
 
 /**

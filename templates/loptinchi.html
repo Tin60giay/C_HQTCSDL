@@ -69,21 +69,22 @@
     <div class="alert {% if 'thành công' in m.lower() %}alert-success{% else %}alert-error{% endif %}">{{ m }}</div>
     {% endfor %}{% endif %}{% endwith %}
 
-    <!-- Filter tự động (không cần nút bấm) -->
+    <!-- Filter đồng bộ (giống lop.html) -->
     <div class="card">
         <div class="filter-bar">
             <div class="fg">
                 <label>Niên khóa</label>
-                <select id="fNK_filter" onchange="locBang()">
+                <select id="fNK_filter" onchange="locFilter()">
                     <option value="">-- Tất cả --</option>
                     {% for nk in nienkhoa_list %}
-                    <option value="{{ nk }}" {% if nienkhoa==nk %}selected{% endif %}>{{ nk }}</option>
+                    {% set nk_start = nk.split('-')[0]|int if nk and '-' in nk else 0 %}
+                    <option value="{{ nk }}" {% if nienkhoa==nk %}selected{% endif %}>{{ nk }}{% if nk_start and nk_start < 2025 %} 🔒{% endif %}</option>
                     {% endfor %}
                 </select>
             </div>
             <div class="fg">
                 <label>Học kỳ</label>
-                <select id="fHK_filter" onchange="locBang()">
+                <select id="fHK_filter" onchange="locFilter()">
                     <option value="">-- Tất cả --</option>
                     <option value="1" {% if hocky=='1' %}selected{% endif %}>Học kỳ 1</option>
                     <option value="2" {% if hocky=='2' %}selected{% endif %}>Học kỳ 2</option>
@@ -92,7 +93,7 @@
             </div>
             <div class="fg">
                 <label>Khoa</label>
-                <select id="fKHOA_filter" onchange="locBang()">
+                <select id="fKHOA_filter" onchange="locFilter()">
                     <option value="">-- Tất cả --</option>
                     {% for k in khoa_list %}
                     <option value="{{ k.MAKHOA }}" {% if makhoa_filter==k.MAKHOA %}selected{% endif %}>{{ k.TENKHOA }}</option>
@@ -100,8 +101,11 @@
                 </select>
             </div>
             <div class="fg">
-                <label>Tìm môn / GV</label>
+                <label>Tìm mã MH / GV</label>
                 <input type="text" id="fTXT_filter" oninput="locBang()" placeholder="Nhập để lọc...">
+            </div>
+            <div class="fg" style="align-self:flex-end;">
+                <button class="btn btn-outline" onclick="resetFilter()" style="padding:.45rem 1rem;">↻ Xem tất cả</button>
             </div>
         </div>
     </div>
@@ -124,7 +128,7 @@
             {% for l in ltc_list %}
             <tr class="{% if l.IS_FROZEN %}frozen-row{% endif %} {% if l.HUYLOP == 1 %}cancelled-row{% endif %}" 
                 data-nk="{{ l.NIENKHOA }}" data-hk="{{ l.HOCKY }}" data-khoa="{{ l.MAKHOA }}" 
-                data-text="{{ l.TENMH }} {{ l.TENGV }} {{ l.MAMH }}"
+                data-text="{{ l.NIENKHOA }} {{ l.HOCKY }} {{ l.MAMH }} {{ l.TENMH }} {{ l.MAGV }} {{ l.TENGV }} {{ l.TENKHOA }}"
                 onclick="chonDong(this, '{{ l.MALTC }}', '{{ l.NIENKHOA }}', {{ l.HOCKY }}, '{{ l.MAMH }}', {{ l.NHOM }}, '{{ l.MAGV }}', '{{ l.MAKHOA }}', {{ l.SOSVTOITHIEU }}, {{ 'true' if l.IS_FROZEN else 'false' }}, {{ 1 if l.HUYLOP else 0 }}, {{ l.SOSV_DANGKY }}, {{ 'true' if l.CO_DIEM else 'false' }})">
                 <td>
                     {{ l.MALTC }}
@@ -133,9 +137,9 @@
                 </td>
                 <td>{{ l.NIENKHOA }}</td>
                 <td>{{ l.HOCKY }}</td>
-                <td>{{ l.TENMH }}</td>
+                <td>{{ l.TENMH }} <span class="badge-muted">{{ l.MAMH }}</span></td>
                 <td>{{ l.NHOM }}</td>
-                <td>{{ l.TENGV }}</td>
+                <td>{{ l.TENGV }} <span class="badge-muted">{{ l.MAGV }}</span></td>
                 <td>{{ l.TENKHOA }}</td>
                 <td>{{ l.SOSVTOITHIEU }}</td>
                 <td>{{ l.SOSV_DANGKY }}</td>
@@ -170,7 +174,8 @@
                 <select id="fNK">
                     <option value="">-- Chọn niên khóa --</option>
                     {% for nk in nienkhoa_list %}
-                    <option value="{{ nk }}">{{ nk }}</option>
+                    {% set nk_start = nk.split('-')[0]|int if nk and '-' in nk else 0 %}
+                    <option value="{{ nk }}">{{ nk }}{% if nk_start and nk_start < 2025 %} 🔒{% endif %}</option>
                     {% endfor %}
                 </select>
             </div>
@@ -208,14 +213,26 @@
 <script>
 let sel=null, orig={}, selHuylop=0, selSosvDangky=0, selCoDiem=false;
 
+function locFilter() {
+    // [PLANT_NHAPDIEM_RETAIN_2026] NK / HK / Khoa filter cần reload từ server
+    // vì tập rows có thể khác hoàn toàn giữa các filter.
+    const nk = document.getElementById('fNK_filter').value;
+    const hk = document.getElementById('fHK_filter').value;
+    const khoa = document.getElementById('fKHOA_filter').value;
+    const url = new URL(window.location.href);
+    if (nk) url.searchParams.set('nienkhoa', nk); else url.searchParams.delete('nienkhoa');
+    if (hk) url.searchParams.set('hocky', hk); else url.searchParams.delete('hocky');
+    if (khoa) url.searchParams.set('makhoa', khoa); else url.searchParams.delete('makhoa');
+    window.location.href = url.toString();
+}
+
 function locBang() {
-    const nk   = document.getElementById('fNK_filter').value;
+    // Client-side filter cho HK / Khoa / Text search trong tập rows hiện tại
     const hk   = document.getElementById('fHK_filter').value;
     const khoa = document.getElementById('fKHOA_filter').value;
     const txt  = document.getElementById('fTXT_filter').value.toLowerCase();
     document.querySelectorAll('#tblLTC tbody tr[data-nk]').forEach(tr => {
-        const ok = (!nk   || tr.dataset.nk === nk)
-                && (!hk   || tr.dataset.hk === hk)
+        const ok = (!hk   || tr.dataset.hk === hk)
                 && (!khoa || tr.dataset.khoa === khoa)
                 && (!txt  || tr.dataset.text.toLowerCase().includes(txt));
         tr.style.display = ok ? '' : 'none';
@@ -240,12 +257,16 @@ function chonDong(row, maltc, nk, hk, mamh, nhom, magv, makhoa, minsv, isFrozen,
     set('fHK',hk);set('fMAMH',mamh.trim());set('fNHOM',nhom);
     set('fMAGV',magv.trim());set('fMAKHOA_F',makhoa.trim());set('fSOSV',minsv);
     orig={maltc,nk:nk.trim(),hk,mamh:mamh.trim(),nhom,magv:magv.trim(),makhoa:makhoa.trim(),sosv:minsv};
-    
+
     if (isFrozen) {
+        // [PLANT_LTC_BUGS_2026] Frozen: khóa tất cả
         toggleFormLock(true, ['fNK', 'fHK', 'fMAMH', 'fNHOM', 'fMAGV', 'fMAKHOA_F', 'fSOSV']);
         updateActionButtons('error');
     } else {
-        toggleFormLock(false, ['fNK', 'fHK', 'fMAMH', 'fNHOM', 'fMAGV', 'fMAKHOA_F', 'fSOSV']);
+        // [PLANT_LTC_BUGS_2026] Khi edit (không frozen): khóa 4 trường định danh
+        // (NIENKHOA, HOCKY, MAMH, MAKHOA) - chỉ cho sửa NHOM, MAGV, SOSV
+        toggleFormLock(true, ['fNK', 'fHK', 'fMAMH', 'fMAKHOA_F']);
+        toggleFormLock(false, ['fNHOM', 'fMAGV', 'fSOSV']);
         updateActionButtons('editing');
         
         // Cập nhật động nút Hủy lớp / Xóa vĩnh viễn / Mở lại lớp
@@ -279,6 +300,11 @@ function chonDong(row, maltc, nk, hk, mamh, nhom, magv, makhoa, minsv, isFrozen,
         }
     }
 }
+
+function resetFilter() {
+    // [PLANT_NHAPDIEM_RETAIN_2026] Reset toàn bộ - reload không query để lấy NK mới nhất
+    window.location.href = '/loptinchi';
+}
 function themMoi_ThucHien(){
     const nk=getNK();
     if(!nk){alert('Vui lòng chọn niên khóa.');return;}
@@ -306,6 +332,7 @@ function xoaTrang(){
     const set=(id,v)=>{const el=document.getElementById(id);if(el)el.value=v;};
     set('fNK','');set('fHK','1');set('fMAMH','');set('fNHOM','1');
     set('fMAGV','');set('fMAKHOA_F','');set('fSOSV','10');
+    // [PLANT_LTC_BUGS_2026] Mở khóa tất cả khi tạo mới
     toggleFormLock(false, ['fNK', 'fHK', 'fMAMH', 'fNHOM', 'fMAGV', 'fMAKHOA_F', 'fSOSV']);
     updateActionButtons('adding');
     

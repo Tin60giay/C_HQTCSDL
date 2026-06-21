@@ -413,14 +413,16 @@
                 updateActionButtons('error'); // Khóa tất cả nút trừ nút làm mới
             } else {
                 resetValidationState('fMAMH');
+                // [PLANT_LTC_BUGS_2026] Vẫn làm mờ Mã MH (khóa chính) dù không frozen
+                toggleFormLock(true, ['fMAMH']);
                 toggleFormLock(false, ['fTENMH', 'fLT', 'fTH']);
                 updateActionButtons('editing');
             }
             
             const fM = document.getElementById('fMAMH');
             fM.value = mamh;
-            fM.readOnly = true;
-            fM.style.borderColor = isFrozen ? '#fca5a5' : 'var(--border)';
+            // [PLANT_LTC_BUGS_2026] Luôn readOnly + mờ cho khóa chính
+            applyReadonlyStyle(fM, isFrozen);
             
             document.getElementById('fTENMH').value = tenmh;
             document.getElementById('fLT').value = lt;
@@ -484,7 +486,9 @@
             document.querySelectorAll('#tblMonhoc tr').forEach(r => r.classList.remove('selected'));
             selectedMAMH = null;
             const fM = document.getElementById('fMAMH');
-            fM.value = ''; fM.readOnly = false; fM.style.borderColor = 'var(--border)';
+            fM.value = '';
+            // [PLANT_LTC_BUGS_2026] Bỏ làm mờ khi tạo mới
+            clearReadonlyStyle(fM);
             document.getElementById('fTENMH').value = '';
             document.getElementById('fLT').value = '30';
             document.getElementById('fTH').value = '0';

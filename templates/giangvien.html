@@ -442,9 +442,10 @@
             document.querySelectorAll('#tblGV tr').forEach(r => r.classList.remove('selected'));
             row.classList.add('selected'); sel = magv;
             
+            // [PLANT_LTC_BUGS_2026] Làm mờ Mã GV (khóa chính) khi chọn dòng
             const fM = document.getElementById('fMAGV');
-            fM.value = magv; fM.readOnly = true;
-            fM.style.borderColor = 'var(--border)';
+            fM.value = magv;
+            applyReadonlyStyle(fM, false);
             
             document.getElementById('fHO').value = ho; 
             document.getElementById('fTEN').value = ten;
@@ -516,7 +517,9 @@
             document.querySelectorAll('#tblGV tr').forEach(r => r.classList.remove('selected'));
             sel = null; orig = {};
             const fM = document.getElementById('fMAGV');
-            fM.value = ''; fM.readOnly = false; fM.style.borderColor = 'var(--border)';
+            fM.value = '';
+            // [PLANT_LTC_BUGS_2026] Bỏ làm mờ khi tạo mới
+            clearReadonlyStyle(fM);
             ['fHO', 'fTEN', 'fCHUYENMON'].forEach(id => document.getElementById(id).value = '');
             ['fHOCVI', 'fHOCHAM'].forEach(id => document.getElementById(id).value = '');
             updateActionButtons('idle');
