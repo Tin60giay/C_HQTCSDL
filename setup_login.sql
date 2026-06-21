@@ -287,7 +287,6 @@ BEGIN
     WHERE (@NIENKHOA IS NULL OR LTC.NIENKHOA = @NIENKHOA)
       AND (@HOCKY    IS NULL OR LTC.HOCKY    = @HOCKY)
       AND (@MAKHOA   IS NULL OR LTC.MAKHOA   = @MAKHOA)
-      AND LTC.HUYLOP = 0
     GROUP BY LTC.MALTC, LTC.NIENKHOA, LTC.HOCKY,
              LTC.MAMH, MH.TENMH, LTC.NHOM,
              LTC.MAGV, GV.HO, GV.TEN,
@@ -1379,13 +1378,13 @@ GO
 PRINT N'Đã tạo SP CRUD GIANGVIEN'
 GO
 -- ------------------------------------------------------------
--- SP_CHECK_MONHOC_HISTORY: Kiểm tra môn học có lịch sử dạy chưa
+-- SP_KIEMTRA_LICHSU_MONHOC: Kiểm tra môn học có lịch sử dạy chưa
 -- Trả về 1 nếu đã từng dạy trong quá khứ (Niên khóa < 2025-2026)
 -- ------------------------------------------------------------
-IF EXISTS (SELECT * FROM sys.objects WHERE name = 'SP_CHECK_MONHOC_HISTORY' AND type = 'P')
-    DROP PROCEDURE SP_CHECK_MONHOC_HISTORY
+IF EXISTS (SELECT * FROM sys.objects WHERE name = 'SP_KIEMTRA_LICHSU_MONHOC' AND type = 'P')
+    DROP PROCEDURE SP_KIEMTRA_LICHSU_MONHOC
 GO
-CREATE PROCEDURE SP_CHECK_MONHOC_HISTORY
+CREATE PROCEDURE SP_KIEMTRA_LICHSU_MONHOC
     @MAMH NCHAR(10)
 AS
 BEGIN
@@ -1404,9 +1403,9 @@ BEGIN
     END
 END
 GO
-GRANT EXECUTE ON SP_CHECK_MONHOC_HISTORY TO PUBLIC
+GRANT EXECUTE ON SP_KIEMTRA_LICHSU_MONHOC TO PUBLIC
 GO
-PRINT N'Đã tạo SP_CHECK_MONHOC_HISTORY'
+PRINT N'Đã tạo SP_KIEMTRA_LICHSU_MONHOC'
 GO
 
 -- ============================================================
@@ -1585,4 +1584,203 @@ GO
 GRANT EXECUTE ON SP_SV_DOIMATKHAU TO PUBLIC
 GO
 PRINT N'Đã tạo SP_SV_DOIMATKHAU'
+GO
+
+-- ============================================================
+-- PHẦN BÁO CÁO VÀ IN ẤN (MỤC 3.4) - THÀNH VIÊN 3
+-- ============================================================
+
+-- ------------------------------------------------------------
+-- SP_InDanhSachLopTinChi: In danh sách lớp tín chỉ đã mở
+-- ------------------------------------------------------------
+IF EXISTS (SELECT * FROM sys.objects WHERE name = 'SP_InDanhSachLopTinChi' AND type = 'P')
+    DROP PROCEDURE SP_InDanhSachLopTinChi
+GO
+CREATE PROCEDURE SP_InDanhSachLopTinChi
+    @NIENKHOA NCHAR(9),
+    @HOCKY INT,
+    @MAKHOA NCHAR(10)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT 
+        MH.TENMH,
+        LTC.NHOM,
+        RTRIM(GV.HO) + ' ' + RTRIM(GV.TEN) AS HOTENGV,
+        LTC.SOSVTOITHIEU,
+        (SELECT COUNT(MASV) FROM DANGKY DK WHERE DK.MALTC = LTC.MALTC AND (DK.HUYDANGKY = 0 OR DK.HUYDANGKY IS NULL)) AS SOSVDADANGKY
+    FROM 
+        LOPTINCHI LTC
+    INNER JOIN 
+        MONHOC MH ON LTC.MAMH = MH.MAMH
+    INNER JOIN 
+        GIANGVIEN GV ON LTC.MAGV = GV.MAGV
+    WHERE 
+        LTC.NIENKHOA = @NIENKHOA 
+        AND LTC.HOCKY = @HOCKY 
+        AND LTC.MAKHOA = @MAKHOA
+        AND LTC.HUYLOP = 0
+    ORDER BY 
+        MH.TENMH ASC, LTC.NHOM ASC
+END
+GO
+GRANT EXECUTE ON SP_InDanhSachLopTinChi TO PUBLIC
+GO
+PRINT N'Đã tạo SP_InDanhSachLopTinChi'
+GO
+
+-- ------------------------------------------------------------
+-- SP_InDanhSachSVDangKy: In danh sách sinh viên đăng ký lớp tín chỉ
+-- ------------------------------------------------------------
+IF EXISTS (SELECT * FROM sys.objects WHERE name = 'SP_InDanhSachSVDangKy' AND type = 'P')
+    DROP PROCEDURE SP_InDanhSachSVDangKy
+GO
+CREATE PROCEDURE SP_InDanhSachSVDangKy
+    @NIENKHOA NCHAR(9),
+    @HOCKY INT,
+    @MAMH NCHAR(10),
+    @NHOM INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT 
+        SV.MASV,
+        SV.HO,
+        SV.TEN,
+        CASE WHEN SV.PHAI = 0 THEN N'Nam' ELSE N'Nữ' END AS PHAI,
+        SV.MALOP
+    FROM 
+        LOPTINCHI LTC
+    INNER JOIN 
+        DANGKY DK ON LTC.MALTC = DK.MALTC
+    INNER JOIN 
+        SINHVIEN SV ON DK.MASV = SV.MASV
+    WHERE 
+        LTC.NIENKHOA = @NIENKHOA 
+        AND LTC.HOCKY = @HOCKY 
+        AND LTC.MAMH = @MAMH 
+        AND LTC.NHOM = @NHOM
+        AND (DK.HUYDANGKY = 0 OR DK.HUYDANGKY IS NULL)
+    ORDER BY 
+        SV.TEN ASC, SV.HO ASC
+END
+GO
+GRANT EXECUTE ON SP_InDanhSachSVDangKy TO PUBLIC
+GO
+PRINT N'Đã tạo SP_InDanhSachSVDangKy'
+GO
+
+-- ------------------------------------------------------------
+-- SP_InBangDiemMonHoc: In bảng điểm hết môn của 1 lớp tín chỉ
+-- ------------------------------------------------------------
+IF EXISTS (SELECT * FROM sys.objects WHERE name = 'SP_InBangDiemMonHoc' AND type = 'P')
+    DROP PROCEDURE SP_InBangDiemMonHoc
+GO
+CREATE PROCEDURE SP_InBangDiemMonHoc
+    @NIENKHOA NCHAR(9),
+    @HOCKY INT,
+    @MAMH NCHAR(10),
+    @NHOM INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT 
+        SV.MASV,
+        SV.HO,
+        SV.TEN,
+        DK.DIEM_CC,
+        DK.DIEM_GK,
+        DK.DIEM_CK,
+        CASE
+            WHEN DK.DIEM_CC IS NOT NULL
+             AND DK.DIEM_GK IS NOT NULL
+             AND DK.DIEM_CK IS NOT NULL
+            THEN ROUND(DK.DIEM_CC * 0.1 + DK.DIEM_GK * 0.3 + DK.DIEM_CK * 0.6, 1)
+            ELSE NULL
+        END AS DIEM_HM
+    FROM DANGKY DK
+    INNER JOIN LOPTINCHI LTC ON DK.MALTC = LTC.MALTC
+    INNER JOIN SINHVIEN  SV  ON DK.MASV  = SV.MASV
+    WHERE LTC.NIENKHOA = @NIENKHOA
+      AND LTC.HOCKY = @HOCKY
+      AND LTC.MAMH = @MAMH
+      AND LTC.NHOM = @NHOM
+      AND (DK.HUYDANGKY = 0 OR DK.HUYDANGKY IS NULL)
+      AND (LTC.HUYLOP = 0 OR LTC.HUYLOP IS NULL)
+    ORDER BY SV.TEN ASC, SV.HO ASC;
+END
+GO
+GRANT EXECUTE ON SP_InBangDiemMonHoc TO PUBLIC
+GO
+PRINT N'Đã tạo SP_InBangDiemMonHoc'
+GO
+
+-- ------------------------------------------------------------
+-- SP_InPhieuDiem: In phiếu điểm cá nhân của 1 sinh viên (GV/PGV tra cứu)
+-- ------------------------------------------------------------
+IF EXISTS (SELECT * FROM sys.objects WHERE name = 'SP_InPhieuDiem' AND type = 'P')
+    DROP PROCEDURE SP_InPhieuDiem
+GO
+CREATE PROCEDURE SP_InPhieuDiem
+    @MASV NCHAR(10)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT 
+        MH.TENMH,
+        MAX(CASE
+            WHEN DK.DIEM_CC IS NOT NULL
+             AND DK.DIEM_GK IS NOT NULL
+             AND DK.DIEM_CK IS NOT NULL
+            THEN ROUND(DK.DIEM_CC * 0.1 + DK.DIEM_GK * 0.3 + DK.DIEM_CK * 0.6, 1)
+            ELSE NULL
+        END) AS DIEM_MAX
+    FROM DANGKY DK
+    INNER JOIN LOPTINCHI LTC ON DK.MALTC = LTC.MALTC
+    INNER JOIN MONHOC    MH  ON LTC.MAMH  = MH.MAMH
+    WHERE DK.MASV = @MASV
+      AND (DK.HUYDANGKY = 0 OR DK.HUYDANGKY IS NULL)
+    GROUP BY MH.MAMH, MH.TENMH
+    ORDER BY MH.TENMH ASC;
+END
+GO
+GRANT EXECUTE ON SP_InPhieuDiem TO PUBLIC
+GO
+PRINT N'Đã tạo SP_InPhieuDiem'
+GO
+
+-- ------------------------------------------------------------
+-- SP_InBangDiemTongKet: In bảng điểm tổng kết của 1 lớp (Cross-Tab)
+-- ------------------------------------------------------------
+IF EXISTS (SELECT * FROM sys.objects WHERE name = 'SP_InBangDiemTongKet' AND type = 'P')
+    DROP PROCEDURE SP_InBangDiemTongKet
+GO
+CREATE PROCEDURE SP_InBangDiemTongKet
+    @MALOP NCHAR(15)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT 
+        SV.MASV,
+        RTRIM(SV.HO) + ' ' + RTRIM(SV.TEN) AS HOTEN,
+        MH.TENMH,
+        MAX(CASE
+            WHEN DK.DIEM_CC IS NOT NULL
+             AND DK.DIEM_GK IS NOT NULL
+             AND DK.DIEM_CK IS NOT NULL
+            THEN ROUND(DK.DIEM_CC * 0.1 + DK.DIEM_GK * 0.3 + DK.DIEM_CK * 0.6, 1)
+            ELSE NULL
+        END) AS DIEM_MAX
+    FROM SINHVIEN SV
+    LEFT JOIN DANGKY DK ON SV.MASV = DK.MASV AND (DK.HUYDANGKY = 0 OR DK.HUYDANGKY IS NULL)
+    LEFT JOIN LOPTINCHI LTC ON DK.MALTC = LTC.MALTC
+    LEFT JOIN MONHOC MH ON LTC.MAMH = MH.MAMH
+    WHERE SV.MALOP = @MALOP
+    GROUP BY SV.MASV, SV.HO, SV.TEN, MH.MAMH, MH.TENMH
+    ORDER BY SV.TEN ASC, SV.HO ASC, MH.TENMH ASC;
+END
+GO
+GRANT EXECUTE ON SP_InBangDiemTongKet TO PUBLIC
+GO
+PRINT N'Đã tạo SP_InBangDiemTongKet'
 GO

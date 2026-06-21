@@ -220,6 +220,17 @@
             color: #fbbf24;
             margin-left: 0.35rem;
         }
+        .badge {
+            display: inline-block;
+            padding: 0.2rem 0.5rem;
+            font-size: 0.72rem;
+            font-weight: 600;
+            border-radius: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.02em;
+        }
+        .badge-muted { background: rgba(82, 82, 91, 0.2); border: 1px solid rgba(82, 82, 91, 0.4); color: #a1a1aa; }
+        .badge-success { background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3); color: #6ee7b7; }
     </style>
 </head>
 
@@ -261,6 +272,7 @@
                         <th>Tên môn học</th>
                         <th>Tiết LT</th>
                         <th>Tiết TH</th>
+                        <th>Trạng thái</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -269,16 +281,22 @@
                         onclick="chonDong(this, '{{ m.MAMH }}', '{{ m.TENMH }}', '{{ m.SOTIET_LT }}', '{{ m.SOTIET_TH }}', {{ 'true' if m.IS_FROZEN else 'false' }})">
                         <td>
                             {{ m.MAMH }}
-                            {% if m.IS_FROZEN %}<span class="frozen-badge" title="Dữ liệu lịch sử đã bị đóng băng">🔒</span>{% endif %}
+                            {% if m.IS_FROZEN %}<span class="frozen-badge" title="Dữ liệu lịch sử đã khóa">🔒</span>{% endif %}
                         </td>
                         <td>{{ m.TENMH }}</td>
                         <td>{{ m.SOTIET_LT }}</td>
                         <td>{{ m.SOTIET_TH }}</td>
+                        <td>
+                            {% if m.IS_FROZEN %}
+                                <span class="badge badge-muted">Đã dạy (Khóa) 🔒</span>
+                            {% else %}
+                                <span class="badge badge-success">Chưa giảng dạy ✨</span>
+                            {% endif %}
+                        </td>
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="4" style="text-align:center; color: var(--text-muted); padding: 2rem;">Chưa có dữ
-                            liệu</td>
+                        <td colspan="5" style="text-align:center; color: var(--text-muted); padding: 2rem;">Chưa có dữ liệu</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -390,7 +408,7 @@
             selectedMAMH = mamh;
 
             if (isFrozen) {
-                setValidationMsg('fMAMH', '⚠️ Dữ liệu lịch sử đã bị đóng băng, không thể chỉnh sửa.', true);
+                setValidationMsg('fMAMH', '⚠️ Dữ liệu lịch sử đã khóa, không thể chỉnh sửa.', true);
                 toggleFormLock(true, ['fMAMH', 'fTENMH', 'fLT', 'fTH']);
                 updateActionButtons('error'); // Khóa tất cả nút trừ nút làm mới
             } else {

@@ -5,6 +5,7 @@ const HISTORY_ICON = {
   THEM_SV:  '➕', XOA_SV:  '🗑', SUA_SV:  '✏️',
   THEM_MH:  '➕', XOA_MH:  '🗑', SUA_MH:  '✏️',
   THEM_LTC: '➕', XOA_LTC: '🚫', SUA_LTC: '✏️',
+  XOA_VINH_VIEN_LTC: '🗑', MO_LAI_LTC: '🔓',
   THEM_GV:  '➕', XOA_GV:  '🗑', SUA_GV:  '✏️',
 };
 
@@ -87,7 +88,29 @@ async function openHistory() {
       return;
     }
     
-    const nodes = historyDataRaw.map((item, id) => ({...item, id, isChild: false}));
+    const path = window.location.pathname;
+    let allowedTypes = [];
+    if (path.includes('/loptinchi')) {
+        allowedTypes = ['THEM_LTC', 'XOA_LTC', 'SUA_LTC', 'XOA_VINH_VIEN_LTC', 'MO_LAI_LTC'];
+    } else if (path.includes('/monhoc')) {
+        allowedTypes = ['THEM_MH', 'XOA_MH', 'SUA_MH'];
+    } else if (path.includes('/sinhvien')) {
+        allowedTypes = ['THEM_SV', 'XOA_SV', 'SUA_SV'];
+    } else if (path.includes('/lop')) {
+        allowedTypes = ['THEM_LOP', 'XOA_LOP', 'SUA_LOP'];
+    } else if (path.includes('/giangvien')) {
+        allowedTypes = ['THEM_GV', 'XOA_GV', 'SUA_GV'];
+    } else if (path.includes('/khoa')) {
+        allowedTypes = ['THEM_KHOA', 'XOA_KHOA', 'SUA_KHOA'];
+    }
+
+    let nodes = historyDataRaw.map((item, id) => ({...item, id, isChild: false}));
+    nodes = nodes.filter(node => allowedTypes.includes(node.type));
+
+    if (nodes.length === 0) {
+      list.innerHTML = '<p style="color:#a1a1aa;text-align:center;padding:2rem;">Chưa có thao tác nào được ghi lại cho chức năng này.</p>';
+      return;
+    }
     
     for(let i = 0; i < nodes.length; i++) {
         let child = nodes[i];
@@ -111,16 +134,24 @@ async function openHistory() {
           bgStyle = 'background:#111; margin-left:1.5rem; margin-bottom:.6rem; border-left: 2px solid #52525b; border-bottom-left-radius: 0; border-top-left-radius: 0;';
       }
 
+      const isUndoable = node.can_undo !== false;
+      const titleText = isUndoable ? 'Hoàn tác thao tác này' : (node.cannot_undo_reason || 'Không đủ điều kiện để hoàn tác');
+      const btnStyle = isUndoable 
+        ? 'background:transparent;color:#fca5a5;border:1px solid #fca5a5;cursor:pointer;'
+        : 'background:rgba(82,82,91,0.2);color:#52525b;border:1px solid #3f3f46;cursor:not-allowed;';
+      const disabledAttr = isUndoable ? '' : 'disabled';
+
       return `
-      <div style="display:flex;align-items:center;gap:.6rem;padding:.65rem .75rem;border-radius:6px;border:1px solid #2a2a2a;${bgStyle}">
+      <div style="display:flex;align-items:center;gap:.6rem;padding:.65rem .75rem;border-radius:6px;border:1px solid #2a2a2a;${bgStyle}" title="${titleText}">
         ${prefix}
         <span style="font-size:1rem;">${icon}</span>
         <div style="flex:1;min-width:0;">
           <div style="font-size:.83rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600;">${node.label}</div>
           ${hint ? `<div style="font-size:.72rem;color:#c28;margin-top:.2rem;">${hint}</div>` : ''}
+          ${!isUndoable ? `<div style="font-size:.72rem;color:#fca5a5;margin-top:.2rem;font-weight:500;">⚠️ Bị khóa: ${node.cannot_undo_reason}</div>` : ''}
         </div>
-        <button onclick="doSingleTreeUndo(${node.id})"
-            style="background:transparent;color:#fca5a5;border:1px solid #fca5a5;border-radius:6px;padding:.3rem .7rem;font-size:.75rem;font-weight:600;cursor:pointer;white-space:nowrap;transition:0.1s;">
+        <button onclick="doSingleTreeUndo(${node.id})" ${disabledAttr}
+            style="${btnStyle}border-radius:6px;padding:.3rem .7rem;font-size:.75rem;font-weight:600;white-space:nowrap;transition:0.1s;">
             Hoàn tác
         </button>
       </div>`;

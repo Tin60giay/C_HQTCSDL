@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Bảng Điểm Tổng Kết Cuối Khóa</title>
+    <style>
+        body { font-family: 'Times New Roman', serif; background: #f0f2f5; color: #333; padding: 20px; }
+        
+        /* PHẦN CHỈ HIỂN THỊ TRÊN MÀN HÌNH (ẨN KHI IN) */
+        .no-print { background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .no-print h2 { color: #b91c1c; margin-top: 0; font-family: 'Inter', sans-serif;}
+        .form-grid { display: flex; gap: 15px; align-items: flex-end; }
+        .form-grid div { flex: 1; }
+        label { font-weight: bold; font-size: 14px; display: block; margin-bottom: 5px; font-family: 'Inter', sans-serif;}
+        select { padding: 8px; border: 1px solid #ccc; border-radius: 4px; width: 100%; box-sizing: border-box; }
+        
+        .btn-filter { background: #2563eb; color: white; padding: 9px 15px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; width: 100%;}
+        .btn-print { background: #059669; color: white; padding: 9px 15px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; width: 100%;}
+        .btn-filter:hover { background: #1d4ed8; }
+        .btn-print:hover { background: #047857; }
+ 
+        /* PHẦN BÁO CÁO (HIỂN THỊ TRÊN GIẤY) */
+        .print-area { background: white; padding: 40px; box-shadow: 0 0 10px rgba(0,0,0,0.1); max-width: 1000px; margin: 0 auto; min-height: 800px; }
+        
+        /* Tiêu đề hành chính */
+        .header-rpt { text-align: center; margin-bottom: 30px; }
+        .header-rpt h3 { margin: 0; font-size: 18px; text-transform: uppercase; }
+        .header-rpt h1 { margin: 10px 0; font-size: 22px; text-transform: uppercase; font-weight: bold; }
+        .header-rpt p { margin: 5px 0; font-size: 16px; }
+ 
+        /* Bảng dữ liệu */
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 14px; }
+        th, td { border: 1px solid #000; padding: 6px 10px; }
+        th { background-color: #f3f4f6; text-align: center; font-weight: bold; }
+        td:nth-child(1) { text-align: center; width: 40px; } /* STT */
+        td:nth-child(2) { text-align: left; white-space: nowrap; font-weight: bold; } /* Mã SV - Họ Tên */
+        td:not(:nth-child(1)):not(:nth-child(2)) { text-align: center; } /* Các cột điểm môn học */
+        
+        /* Chữ ký */
+        .footer-rpt { display: flex; justify-content: space-between; margin-top: 50px; }
+        .footer-rpt div { text-align: center; width: 30%; }
+        .footer-rpt p { margin: 5px 0; }
+ 
+        /* CẤU HÌNH KHI NHẤN NÚT IN */
+        @media print {
+            body { background: white; padding: 0; }
+            .no-print { display: none !important; }
+            .print-area { box-shadow: none; padding: 0; max-width: 100%; }
+            @page { margin: 15mm; size: A4 landscape; } /* in ngang phù hợp cross-tab */
+        }
+    </style>
+</head>
+<body>
+ 
+<div class="no-print">
+    <h2>🖨️ Báo Cáo: Bảng Điểm Tổng Kết Lớp (Cross-Tab)</h2>
+    <a href="/dashboard" style="color: #2563eb; text-decoration: none; display: inline-block; margin-bottom: 15px;">⬅ Quay lại Dashboard</a>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div style="padding: 10px; background: #fca5a5; color: #991b1b; margin-bottom: 15px; border-radius: 5px; font-weight: bold; font-family: 'Inter', sans-serif;">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+    <form method="POST">
+        <input type="hidden" name="action" value="filter">
+        <div class="form-grid">
+            <div style="flex: 2;">
+                <label>Lớp Học Cử Nhân</label>
+                <select name="malop" required>
+                    <option value="">-- Chọn lớp học --</option>
+                    {% for l in ds_lop %}
+                        <option value="{{ l.MALOP }}" {% if malop_chon == l.MALOP %}selected{% endif %}>[{{ l.MALOP }}] {{ l.TENLOP }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <button type="submit" class="btn-filter">🔍 Trích Xuất</button>
+            </div>
+            <div>
+                <button type="button" class="btn-print" onclick="window.print();" {% if not ds_baocao_students %}disabled style="background: #ccc;"{% endif %}>🖨️ In Báo Cáo</button>
+            </div>
+        </div>
+    </form>
+</div>
+ 
+{% if ds_baocao_students and lop_info %}
+<div class="print-area">
+    
+    <div class="header-rpt">
+        <h1>BẢNG ĐIỂM TỔNG KẾT CUỐI KHÓA</h1>
+        <p>LỚP: <b>{{ lop_info.TENLOP }}</b> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; KHÓA HỌC: <b>{{ lop_info.KHOAHOC }}</b></p>
+        <p>KHOA: <b>{{ lop_info.TENKHOA }}</b></p>
+    </div>
+ 
+    <table>
+        <thead>
+            <tr>
+                <th>STT</th>
+                <th>Mã SV - Họ tên</th>
+                {% for col in monhoc_cols %}
+                <th>{{ col }}</th>
+                {% endfor %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for s in ds_baocao_students %}
+            <tr>
+                <td>{{ loop.index }}</td>
+                <td>{{ s.MASV }} - {{ s.HOTEN }}</td>
+                {% for col in monhoc_cols %}
+                <td>
+                    {% if col in s.DIEM and s.DIEM[col] is not none %}
+                        <b>{{ s.DIEM[col] }}</b>
+                    {% else %}
+                        _
+                    {% endif %}
+                </td>
+                {% endfor %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+ 
+    <div class="footer-rpt">
+        <div>
+            <p><b>Người lập biểu</b></p>
+            <p><i>(Ký và ghi rõ họ tên)</i></p>
+        </div>
+        <div>
+            <p><i>Ngày ..... tháng ..... năm 202...</i></p>
+            <p><b>Xác nhận của Khoa</b></p>
+            <p><i>(Ký, đóng dấu)</i></p>
+        </div>
+    </div>
+ 
+</div>
+{% endif %}
+ 
+</body>
+</html>

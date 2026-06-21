@@ -164,6 +164,302 @@ def push_history(action_type, label, data):
     session.modified = True
 
 
+def check_action_undoable(action, cursor):
+    """
+    Kiểm tra xem một hành động lịch sử có đủ điều kiện để hoàn tác hay không.
+    Trả về (can_undo: bool, reason: str)
+    """
+    atype = action.get('type')
+    d = action.get('data', {})
+    
+    # --- Môn học ---
+    if atype == 'THEM_MH':
+        # Hoàn tác = Xóa môn học
+        mamh = d.get('mamh')
+        cursor.execute("SELECT COUNT(*) FROM MONHOC WHERE MAMH = ?", (mamh,))
+        if cursor.fetchone()[0] == 0:
+            return False, "Môn học đã bị xóa hoặc không tồn tại."
+        # Chặn nếu có bất kỳ lớp tín chỉ nào tham chiếu (dù hủy hay hoạt động)
+        cursor.execute("SELECT COUNT(*) FROM LOPTINCHI WHERE MAMH = ?", (mamh,))
+        if cursor.fetchone()[0] > 0:
+            return False, "Môn học đã phát sinh Lớp tín chỉ."
+        return True, ""
+        
+    elif atype == 'XOA_MH':
+        # Hoàn tác = Khôi phục (Thêm lại) môn học
+        mamh = d.get('mamh')
+        tenmh = d.get('tenmh')
+        cursor.execute("SELECT COUNT(*) FROM MONHOC WHERE MAMH = ?", (mamh,))
+        if cursor.fetchone()[0] > 0:
+            return False, "Mã môn học này đã được tạo mới trong hệ thống."
+        cursor.execute("SELECT COUNT(*) FROM MONHOC WHERE TENMH = ?", (tenmh,))
+        if cursor.fetchone()[0] > 0:
+            return False, "Tên môn học đã được sử dụng cho môn khác."
+        return True, ""
+        
+    elif atype == 'SUA_MH':
+        # Hoàn tác = Khôi phục lại tên/số tiết cũ
+        mamh = d.get('mamh')
+        tenmh_cu = d.get('tenmh_cu')
+        cursor.execute("SELECT COUNT(*) FROM MONHOC WHERE MAMH = ?", (mamh,))
+        if cursor.fetchone()[0] == 0:
+            return False, "Môn học không tồn tại."
+        cursor.execute("SELECT COUNT(*) FROM MONHOC WHERE TENMH = ? AND MAMH <> ?", (tenmh_cu, mamh))
+        if cursor.fetchone()[0] > 0:
+            return False, f"Tên môn học cũ '{tenmh_cu}' đã được gán cho môn học khác."
+            
+        # Nếu hoàn tác làm thay đổi số tiết LT/TH, và môn này đã có đăng ký/điểm số
+        cursor.execute("SELECT SOTIET_LT, SOTIET_TH FROM MONHOC WHERE MAMH = ?", (mamh,))
+        row = cursor.fetchone()
+        if row:
+            curr_lt, curr_th = row[0], row[1]
+            old_lt = d.get('lt_cu')
+            old_th = d.get('th_cu')
+            if curr_lt != old_lt or curr_th != old_th:
+                cursor.execute("""
+                    SELECT COUNT(*) FROM DANGKY DK 
+                    JOIN LOPTINCHI LTC ON DK.MALTC = LTC.MALTC 
+                    WHERE LTC.MAMH = ? AND (DK.HUYDANGKY = 0 OR DK.HUYDANGKY IS NULL)
+                """, (mamh,))
+                if cursor.fetchone()[0] > 0:
+                    return False, "Không thể hoàn tác số tiết: Môn học đã phát sinh SV đăng ký học."
+        return True, ""
+
+    # --- Lớp tín chỉ ---
+    elif atype == 'THEM_LTC':
+        # Hoàn tác = Xóa vật lý lớp tín chỉ
+        maltc = d.get('maltc')
+        cursor.execute("SELECT COUNT(*) FROM LOPTINCHI WHERE MALTC = ?", (maltc,))
+        if cursor.fetchone()[0] == 0:
+            return False, "Lớp tín chỉ không tồn tại."
+        # Chưa có SV đăng ký học
+        cursor.execute("SELECT COUNT(*) FROM DANGKY WHERE MALTC = ?", (maltc,))
+        if cursor.fetchone()[0] > 0:
+            return False, "Lớp tín chỉ đã phát sinh sinh viên đăng ký học."
+        return True, ""
+        
+    elif atype == 'XOA_LTC':
+        # Hoàn tác = Mở lại lớp tín chỉ (set HUYLOP = 0)
+        maltc = d.get('maltc')
+        cursor.execute("SELECT NIENKHOA, HOCKY, MAMH, NHOM, HUYLOP FROM LOPTINCHI WHERE MALTC = ?", (maltc,))
+        row = cursor.fetchone()
+        if not row:
+            return False, "Lớp tín chỉ không tồn tại."
+        nienkhoa, hocky, mamh, nhom, huylop = row[0].strip(), row[1], row[2].strip(), row[3], row[4]
+        if huylop == 0:
+            return False, "Lớp tín chỉ hiện đang hoạt động."
+            
+        # Không được trùng tổ hợp đang hoạt động khác
+        cursor.execute("""
+            SELECT COUNT(*) FROM LOPTINCHI 
+            WHERE NIENKHOA = ? AND HOCKY = ? AND MAMH = ? AND NHOM = ? AND HUYLOP = 0 AND MALTC <> ?
+        """, (nienkhoa, hocky, mamh, nhom, maltc))
+        if cursor.fetchone()[0] > 0:
+            return False, f"Trùng tổ hợp Môn học, Nhóm {nhom}, HK{hocky}, NK{nienkhoa} với lớp đang hoạt động khác."
+            
+        # Môn học cũ phải còn tồn tại
+        cursor.execute("SELECT COUNT(*) FROM MONHOC WHERE MAMH = ?", (mamh,))
+        if cursor.fetchone()[0] == 0:
+            return False, f"Môn học '{mamh}' của lớp tín chỉ đã bị xóa khỏi hệ thống."
+        return True, ""
+        
+    elif atype == 'SUA_LTC':
+        # Hoàn tác = Cập nhật lại thông tin cũ
+        maltc = d.get('maltc')
+        cursor.execute("SELECT NIENKHOA, HOCKY, MAMH, NHOM, MAGV, SOSVTOITHIEU FROM LOPTINCHI WHERE MALTC = ?", (maltc,))
+        row = cursor.fetchone()
+        if not row:
+            return False, "Lớp tín chỉ không tồn tại."
+            
+        curr_nk, curr_hk, curr_mh, curr_nhom, curr_gv, curr_sosv = row[0].strip(), row[1], row[2].strip(), row[3], row[4].strip(), row[5]
+        old_nk = d.get('nienkhoa_cu')
+        old_hk = d.get('hocky_cu')
+        old_mh = d.get('mamh_cu')
+        old_nhom = d.get('nhom_cu')
+        old_gv = d.get('magv_cu')
+        old_sosv = d.get('sosv_cu')
+        
+        # Nếu khôi phục thông tin cốt lõi (NK, HK, MH, Nhóm)
+        if curr_nk != old_nk or curr_hk != old_hk or curr_mh != old_mh or curr_nhom != old_nhom:
+            cursor.execute("""
+                SELECT COUNT(*) FROM LOPTINCHI 
+                WHERE NIENKHOA = ? AND HOCKY = ? AND MAMH = ? AND NHOM = ? AND HUYLOP = 0 AND MALTC <> ?
+            """, (old_nk, old_hk, old_mh, old_nhom, maltc))
+            if cursor.fetchone()[0] > 0:
+                return False, "Tổ hợp cũ trùng với Lớp tín chỉ đang hoạt động khác."
+                
+            cursor.execute("SELECT COUNT(*) FROM MONHOC WHERE MAMH = ?", (old_mh,))
+            if cursor.fetchone()[0] == 0:
+                return False, f"Môn học cũ '{old_mh}' không tồn tại."
+                
+            # Đảm bảo chưa có SV đăng ký học
+            cursor.execute("SELECT COUNT(*) FROM DANGKY WHERE MALTC = ?", (maltc,))
+            if cursor.fetchone()[0] > 0:
+                return False, "Không thể hoàn tác thông tin chính (Môn/Nhóm/HK/NK) vì lớp đã có sinh viên đăng ký."
+                
+        # Giảng viên cũ phải còn tồn tại
+        cursor.execute("SELECT COUNT(*) FROM GIANGVIEN WHERE MAGV = ?", (old_gv,))
+        if cursor.fetchone()[0] == 0:
+            return False, f"Giảng viên cũ '{old_gv}' không tồn tại."
+            
+        # Nếu khôi phục giảng viên hoặc số SV tối thiểu nhưng lớp đã có điểm
+        if curr_gv != old_gv or curr_sosv != old_sosv:
+            cursor.execute("""
+                SELECT COUNT(*) FROM DANGKY 
+                WHERE MALTC = ? AND (DIEM_CC IS NOT NULL OR DIEM_GK IS NOT NULL OR DIEM_CK IS NOT NULL)
+            """, (maltc,))
+            if cursor.fetchone()[0] > 0:
+                return False, "Không thể hoàn tác thông tin vì lớp đã được nhập điểm."
+                
+        return True, ""
+
+    # --- Các hành động khác (Khoa, Lớp, Sinh viên, Giảng viên) ---
+    elif atype == 'THEM_LOP':
+        malop = d.get('malop')
+        cursor.execute("SELECT COUNT(*) FROM LOP WHERE MALOP = ?", (malop,))
+        if cursor.fetchone()[0] == 0:
+            return False, "Lớp không tồn tại."
+        cursor.execute("SELECT COUNT(*) FROM SINHVIEN WHERE MALOP = ?", (malop,))
+        if cursor.fetchone()[0] > 0:
+            return False, "Lớp đã phát sinh sinh viên."
+        return True, ""
+        
+    elif atype == 'XOA_LOP':
+        malop = d.get('malop')
+        cursor.execute("SELECT COUNT(*) FROM LOP WHERE MALOP = ?", (malop,))
+        if cursor.fetchone()[0] > 0:
+            return False, "Lớp này đã tồn tại lại trong hệ thống."
+        return True, ""
+        
+    elif atype == 'SUA_LOP':
+        malop = d.get('malop')
+        cursor.execute("SELECT COUNT(*) FROM LOP WHERE MALOP = ?", (malop,))
+        if cursor.fetchone()[0] == 0:
+            return False, "Lớp không tồn tại."
+        return True, ""
+        
+    elif atype == 'THEM_SV':
+        masv = d.get('masv')
+        cursor.execute("SELECT COUNT(*) FROM SINHVIEN WHERE MASV = ?", (masv,))
+        if cursor.fetchone()[0] == 0:
+            return False, "Sinh viên không tồn tại."
+        cursor.execute("SELECT COUNT(*) FROM DANGKY WHERE MASV = ?", (masv,))
+        if cursor.fetchone()[0] > 0:
+            return False, "Sinh viên đã đăng ký học Lớp tín chỉ."
+        return True, ""
+        
+    elif atype == 'XOA_SV':
+        masv = d.get('masv')
+        cursor.execute("SELECT COUNT(*) FROM SINHVIEN WHERE MASV = ?", (masv,))
+        if cursor.fetchone()[0] > 0:
+            return False, "Sinh viên này đã tồn tại lại trong hệ thống."
+        malop = d.get('malop')
+        cursor.execute("SELECT COUNT(*) FROM LOP WHERE MALOP = ?", (malop,))
+        if cursor.fetchone()[0] == 0:
+            return False, f"Lớp '{malop}' của sinh viên đã bị xóa."
+        return True, ""
+        
+    elif atype == 'SUA_SV':
+        masv = d.get('masv')
+        cursor.execute("SELECT COUNT(*) FROM SINHVIEN WHERE MASV = ?", (masv,))
+        if cursor.fetchone()[0] == 0:
+            return False, "Sinh viên không tồn tại."
+        malop_cu = d.get('malop_cu')
+        cursor.execute("SELECT COUNT(*) FROM LOP WHERE MALOP = ?", (malop_cu,))
+        if cursor.fetchone()[0] == 0:
+            return False, f"Lớp cũ '{malop_cu}' của sinh viên không tồn tại."
+        return True, ""
+        
+    # Thêm check cho Khoa và Giảng viên
+    elif atype == 'THEM_KHOA':
+        makhoa = d.get('makhoa')
+        cursor.execute("SELECT COUNT(*) FROM KHOA WHERE MAKHOA = ?", (makhoa,))
+        if cursor.fetchone()[0] == 0:
+            return False, "Khoa không tồn tại."
+        cursor.execute("SELECT (SELECT COUNT(*) FROM LOP WHERE MAKHOA=?) + (SELECT COUNT(*) FROM GIANGVIEN WHERE MAKHOA=?)", (makhoa, makhoa))
+        if cursor.fetchone()[0] > 0:
+            return False, "Khoa đã có lớp học hoặc giảng viên trực thuộc."
+        return True, ""
+        
+    elif atype == 'XOA_KHOA':
+        makhoa = d.get('makhoa')
+        cursor.execute("SELECT COUNT(*) FROM KHOA WHERE MAKHOA = ?", (makhoa,))
+        if cursor.fetchone()[0] > 0:
+            return False, "Khoa này đã tồn tại lại trong hệ thống."
+        return True, ""
+        
+    elif atype == 'SUA_KHOA':
+        makhoa = d.get('makhoa')
+        cursor.execute("SELECT COUNT(*) FROM KHOA WHERE MAKHOA = ?", (makhoa,))
+        if cursor.fetchone()[0] == 0:
+            return False, "Khoa không tồn tại."
+        return True, ""
+        
+    elif atype == 'THEM_GV':
+        magv = d.get('magv')
+        cursor.execute("SELECT COUNT(*) FROM GIANGVIEN WHERE MAGV = ?", (magv,))
+        if cursor.fetchone()[0] == 0:
+            return False, "Giảng viên không tồn tại."
+        cursor.execute("SELECT COUNT(*) FROM LOPTINCHI WHERE MAGV = ?", (magv,))
+        if cursor.fetchone()[0] > 0:
+            return False, "Giảng viên đã được phân công dạy Lớp tín chỉ."
+        return True, ""
+        
+    elif atype == 'XOA_GV':
+        magv = d.get('magv')
+        cursor.execute("SELECT COUNT(*) FROM GIANGVIEN WHERE MAGV = ?", (magv,))
+        if cursor.fetchone()[0] > 0:
+            return False, "Giảng viên này đã tồn tại lại trong hệ thống."
+        return True, ""
+        
+    elif atype == 'SUA_GV':
+        magv = d.get('magv')
+        cursor.execute("SELECT COUNT(*) FROM GIANGVIEN WHERE MAGV = ?", (magv,))
+        if cursor.fetchone()[0] == 0:
+            return False, "Giảng viên không tồn tại."
+        return True, ""
+
+    # Thêm check cho các action biến động Lớp tín chỉ nâng cao
+    elif atype == 'XOA_VINH_VIEN_LTC':
+        # Hoàn tác = Thêm lại lớp tín chỉ
+        cursor.execute("""
+            SELECT COUNT(*) FROM LOPTINCHI 
+            WHERE NIENKHOA = ? AND HOCKY = ? AND MAMH = ? AND NHOM = ? AND HUYLOP = 0
+        """, (d.get('nienkhoa'), d.get('hocky'), d.get('mamh'), d.get('nhom')))
+        if cursor.fetchone()[0] > 0:
+            return False, "Tổ hợp Niên khóa, Học kỳ, Môn, Nhóm đã có lớp khác đang hoạt động."
+            
+        cursor.execute("SELECT COUNT(*) FROM MONHOC WHERE MAMH = ?", (d.get('mamh'),))
+        if cursor.fetchone()[0] == 0:
+            return False, f"Môn học '{d.get('mamh')}' không còn tồn tại."
+            
+        cursor.execute("SELECT COUNT(*) FROM GIANGVIEN WHERE MAGV = ?", (d.get('magv'),))
+        if cursor.fetchone()[0] == 0:
+            return False, f"Giảng viên '{d.get('magv')}' không còn tồn tại."
+        return True, ""
+        
+    elif atype == 'MO_LAI_LTC':
+        # Hoàn tác = Hủy lớp tín chỉ
+        maltc = d.get('maltc')
+        cursor.execute("SELECT HUYLOP FROM LOPTINCHI WHERE MALTC = ?", (maltc,))
+        row = cursor.fetchone()
+        if not row:
+            return False, "Lớp tín chỉ không tồn tại."
+        if row[0] == 1:
+            return False, "Lớp tín chỉ đã ở trạng thái hủy."
+            
+        # Kiểm tra xem lớp đã có điểm học tập chưa
+        cursor.execute("""
+            SELECT COUNT(*) FROM DANGKY 
+            WHERE MALTC = ? AND (DIEM_CC IS NOT NULL OR DIEM_GK IS NOT NULL OR DIEM_CK IS NOT NULL)
+        """, (maltc,))
+        if cursor.fetchone()[0] > 0:
+            return False, "Lớp đã có sinh viên được nhập điểm, không thể hủy."
+        return True, ""
+
+    return True, ""
+
+
 # ----------------------------------------------------------------
 # Decorator phân quyền
 # ----------------------------------------------------------------
@@ -384,8 +680,28 @@ def can_delete():
 @app.route('/history')
 @login_required
 def history_get():
-    """Trả về 10 hành động gần nhất dạng JSON."""
-    return jsonify(session.get('history', []))
+    """Trả về 10 hành động gần nhất dạng JSON kèm điều kiện check hoàn tác realtime."""
+    history = session.get('history', [])
+    conn, _ = get_db()
+    if not conn:
+        return jsonify(history)
+        
+    updated_history = []
+    try:
+        cursor = conn.cursor()
+        for action in history:
+            can_undo, reason = check_action_undoable(action, cursor)
+            act_copy = dict(action)
+            act_copy['can_undo'] = can_undo
+            act_copy['cannot_undo_reason'] = reason
+            updated_history.append(act_copy)
+    except Exception as e:
+        print("Lỗi check undoable:", e)
+        updated_history = history
+    finally:
+        conn.close()
+        
+    return jsonify(updated_history)
 
 
 @app.route('/history/undo', methods=['POST'])
@@ -404,6 +720,12 @@ def history_undo():
         return jsonify({'ok': False, 'msg': 'Không thể kết nối DB'}), 500
     try:
         cursor = conn.cursor()
+        
+        # BẢO MẬT SERVER-SIDE: Kiểm tra lại điều kiện nghiệp vụ trước khi thực thi hoàn tác
+        can_undo, reason = check_action_undoable(action, cursor)
+        if not can_undo:
+            return jsonify({'ok': False, 'msg': f'Không đủ điều kiện hoàn tác: {reason}'}), 400
+            
         msg = ''
         # --- Hoàn tác lớp ---
         if atype == 'THEM_LOP':
@@ -458,6 +780,14 @@ def history_undo():
                             d['mamh_cu'], d['nhom_cu'], d['magv_cu'],
                             d['makhoa_cu'], d['sosv_cu']))
             msg = f"Đã hoàn tác sửa lớp tín chỉ #{d['maltc']}"
+        elif atype == 'XOA_VINH_VIEN_LTC':
+            cursor.execute("EXEC SP_THEM_LOPTINCHI ?, ?, ?, ?, ?, ?, ?",
+                           (d['nienkhoa'], d['hocky'], d['mamh'], d['nhom'], 
+                            d['magv'], d['makhoa'], d['sosvtoithieu']))
+            msg = f"Đã khôi phục lại lớp tín chỉ cũ {d['mamh']} Nhóm {d['nhom']}"
+        elif atype == 'MO_LAI_LTC':
+            cursor.execute("EXEC SP_XOA_LOPTINCHI ?", (d['maltc'],))
+            msg = f"Đã hủy lại lớp tín chỉ #{d['maltc']}"
         # --- Hoàn tác khoa ---
         elif atype == 'THEM_KHOA':
             cursor.execute("EXEC SP_XOA_KHOA ?", (d['makhoa'],))
@@ -732,8 +1062,8 @@ def monhoc():
                 m = {'MAMH': r.MAMH.strip(), 'TENMH': r.TENMH.strip(), 
                      'SOTIET_LT': r.SOTIET_LT, 'SOTIET_TH': r.SOTIET_TH}
                 
-                # Kiểm tra đóng băng môn học
-                cursor.execute("EXEC SP_CHECK_MONHOC_HISTORY ?", (m['MAMH'],))
+                # Kiểm tra khóa dữ liệu môn học
+                cursor.execute("EXEC SP_KIEMTRA_LICHSU_MONHOC ?", (m['MAMH'],))
                 h = cursor.fetchone()
                 m['IS_FROZEN'] = (h.DUOC_DAY_QUAKHU == 1) if h else False
                 monhoc_list.append(m)
@@ -752,6 +1082,22 @@ def monhoc_them():
     tenmh = request.form.get('tenmh', '').strip()
     sotiet_lt = request.form.get('sotiet_lt', 0)
     sotiet_th = request.form.get('sotiet_th', 0)
+    
+    try:
+        sotiet_lt = int(sotiet_lt)
+        sotiet_th = int(sotiet_th)
+    except ValueError:
+        flash('Số tiết lý thuyết và số tiết thực hành phải là số nguyên.')
+        return redirect(url_for('monhoc'))
+        
+    if sotiet_lt < 0 or sotiet_th < 0:
+        flash('Số tiết không được mang giá trị âm.')
+        return redirect(url_for('monhoc'))
+        
+    if sotiet_lt + sotiet_th <= 0:
+        flash('Tổng số tiết phải lớn hơn 0.')
+        return redirect(url_for('monhoc'))
+
     conn, _ = get_db()
     if conn:
         try:
@@ -779,13 +1125,43 @@ def monhoc_ghi():
     tenmh = request.form.get('tenmh', '').strip()
     sotiet_lt = request.form.get('sotiet_lt', 0)
     sotiet_th = request.form.get('sotiet_th', 0)
+    
+    try:
+        sotiet_lt = int(sotiet_lt)
+        sotiet_th = int(sotiet_th)
+    except ValueError:
+        flash('Số tiết phải là số nguyên.')
+        return redirect(url_for('monhoc'))
+        
+    if sotiet_lt < 0 or sotiet_th < 0:
+        flash('Số tiết không được mang giá trị âm.')
+        return redirect(url_for('monhoc'))
+        
+    if sotiet_lt + sotiet_th <= 0:
+        flash('Tổng số tiết phải lớn hơn 0.')
+        return redirect(url_for('monhoc'))
+
     conn, _ = get_db()
     if conn:
         try:
             cursor = conn.cursor()
-            # Lấy dữ liệu cũ để lưu history
+            # Lấy dữ liệu cũ để kiểm tra thay đổi số tiết
             cursor.execute("SELECT TENMH, SOTIET_LT, SOTIET_TH FROM MONHOC WHERE MAMH=?", (mamh,))
             old = cursor.fetchone()
+            if old:
+                old_lt = old.SOTIET_LT
+                old_th = old.SOTIET_TH
+                # RÀNG BUỘC: Nếu đổi số tiết, môn học phải chưa phát sinh đăng ký ở bất kỳ lớp tín chỉ nào
+                if sotiet_lt != old_lt or sotiet_th != old_th:
+                    cursor.execute("""
+                        SELECT COUNT(*) FROM DANGKY DK
+                        INNER JOIN LOPTINCHI LTC ON DK.MALTC = LTC.MALTC
+                        WHERE LTC.MAMH = ? AND (DK.HUYDANGKY=0 OR DK.HUYDANGKY IS NULL)
+                    """, (mamh,))
+                    if cursor.fetchone()[0] > 0:
+                        flash('Không thể sửa đổi số tiết của môn học: Môn học đã phát sinh sinh viên đăng ký học.')
+                        return redirect(url_for('monhoc'))
+            
             cursor.execute("EXEC SP_SUA_MONHOC ?, ?, ?, ?", (mamh, tenmh, sotiet_lt, sotiet_th))
             row = cursor.fetchone()
             conn.commit()
@@ -793,7 +1169,7 @@ def monhoc_ghi():
             if row and row.KETQUA == 1 and old:
                 push_history('SUA_MH', f'Sửa môn học {mamh}',
                              {'mamh': mamh,
-                              'tenmh_cu': old.TENMH.strip(), 'lt_cu': old.SOTIET_LT, 'th_cu': old.SOTIET_TH})
+                              'tenmh_cu': old.TENMH.strip(), 'lt_cu': old_lt, 'th_cu': old_th})
         except Exception as e:
             flash(f'Lỗi: {e}')
         finally:
@@ -809,16 +1185,12 @@ def monhoc_xoa():
     if conn:
         try:
             cursor = conn.cursor()
-            # Kiểm tra ràng buộc: có SV đăng ký không
-            cursor.execute("""
-                SELECT COUNT(*) FROM DANGKY DK
-                INNER JOIN LOPTINCHI LTC ON DK.MALTC = LTC.MALTC
-                WHERE LTC.MAMH = ? AND (DK.HUYDANGKY=0 OR DK.HUYDANGKY IS NULL)
-            """, (mamh,))
-            so_dk = cursor.fetchone()[0]
-            if so_dk > 0:
-                flash(f'Không thể xóa: môn học đang có {so_dk} sinh viên đã đăng ký.')
+            # RÀNG BUỘC: Chặn xóa nếu môn học đã từng được sử dụng để mở lớp tín chỉ (tránh lỗi khóa ngoại DB)
+            cursor.execute("SELECT COUNT(*) FROM LOPTINCHI WHERE MAMH = ?", (mamh,))
+            if cursor.fetchone()[0] > 0:
+                flash('Không thể xóa: Môn học đã được sử dụng để mở Lớp tín chỉ.')
                 return redirect(url_for('monhoc'))
+                
             # Lấy dữ liệu cũ để lưu history
             cursor.execute("SELECT TENMH, SOTIET_LT, SOTIET_TH FROM MONHOC WHERE MAMH=?", (mamh,))
             old = cursor.fetchone()
@@ -1173,13 +1545,32 @@ def loptinchi():
                 mk = makhoa_filter if makhoa_filter else None
             cursor.execute("EXEC SP_GETALL_LOPTINCHI ?, ?, ?", (nk, hk, mk))
             rows = cursor.fetchall()
-            ltc_list = [{'MALTC': r.MALTC, 'NIENKHOA': r.NIENKHOA.strip(),
-                         'HOCKY': r.HOCKY, 'MAMH': r.MAMH.strip(),
-                         'TENMH': r.TENMH.strip(), 'NHOM': r.NHOM,
-                         'MAGV': r.MAGV.strip(), 'TENGV': r.TENGV.strip(),
-                         'MAKHOA': r.MAKHOA.strip(), 'TENKHOA': r.TENKHOA.strip(),
-                         'SOSVTOITHIEU': r.SOSVTOITHIEU, 'SOSV_DANGKY': r.SOSV_DANGKY,
-                         'IS_FROZEN': is_frozen(r.NIENKHOA.strip())} for r in rows]
+            ltc_list = []
+            for r in rows:
+                # Check xem lớp đã có điểm học tập chưa
+                cursor.execute("""
+                    SELECT COUNT(*) FROM DANGKY 
+                    WHERE MALTC = ? AND (DIEM_CC IS NOT NULL OR DIEM_GK IS NOT NULL OR DIEM_CK IS NOT NULL)
+                """, (r.MALTC,))
+                co_diem = cursor.fetchone()[0] > 0
+                
+                ltc_list.append({
+                    'MALTC': r.MALTC,
+                    'NIENKHOA': r.NIENKHOA.strip(),
+                    'HOCKY': r.HOCKY,
+                    'MAMH': r.MAMH.strip(),
+                    'TENMH': r.TENMH.strip(),
+                    'NHOM': r.NHOM,
+                    'MAGV': r.MAGV.strip(),
+                    'TENGV': r.TENGV.strip(),
+                    'MAKHOA': r.MAKHOA.strip(),
+                    'TENKHOA': r.TENKHOA.strip(),
+                    'SOSVTOITHIEU': r.SOSVTOITHIEU,
+                    'SOSV_DANGKY': r.SOSV_DANGKY,
+                    'HUYLOP': r.HUYLOP,
+                    'CO_DIEM': co_diem,
+                    'IS_FROZEN': is_frozen(r.NIENKHOA.strip())
+                })
             cursor.execute("EXEC SP_GET_ALL_MONHOC")
             monhoc_list = [{'MAMH': r.MAMH.strip(), 'TENMH': r.TENMH.strip()} for r in cursor.fetchall()]
             cursor.execute("EXEC SP_GETALL_GIANGVIEN")
@@ -1256,8 +1647,41 @@ def loptinchi_ghi():
                 flash(f"Lỗi: Lớp tín chỉ #{maltc} thuộc niên khóa đã bị đóng băng, không thể sửa.", "error")
                 return redirect(url_for('loptinchi'))
 
+            # Lấy thông tin cũ và số SV đã đăng ký
             cursor.execute("SELECT NIENKHOA,HOCKY,MAMH,NHOM,MAGV,MAKHOA,SOSVTOITHIEU FROM LOPTINCHI WHERE MALTC=?", (maltc,))
             old = cursor.fetchone()
+            
+            if old:
+                old_nk, old_hk, old_mh, old_nhom, old_gv, old_mk, old_sosv = (
+                    old.NIENKHOA.strip(), old.HOCKY, old.MAMH.strip(), old.NHOM,
+                    old.MAGV.strip(), old.MAKHOA.strip(), old.SOSVTOITHIEU
+                )
+                
+                # 1. RÀNG BUỘC: Nếu đã nhập điểm, chặn sửa hoàn toàn
+                cursor.execute("""
+                    SELECT COUNT(*) FROM DANGKY 
+                    WHERE MALTC = ? AND (DIEM_CC IS NOT NULL OR DIEM_GK IS NOT NULL OR DIEM_CK IS NOT NULL)
+                """, (maltc,))
+                if cursor.fetchone()[0] > 0:
+                    if (nienkhoa != old_nk or int(hocky) != old_hk or mamh != old_mh or
+                        int(nhom) != old_nhom or magv != old_gv or makhoa != old_mk or int(sosvtoithieu) != old_sosv):
+                        flash('Lỗi: Lớp tín chỉ đã có sinh viên được nhập điểm, cấm sửa đổi mọi thông tin.')
+                        return redirect(url_for('loptinchi'))
+                
+                # 2. RÀNG BUỘC: Nếu đã có SV đăng ký học (chưa có điểm)
+                cursor.execute("SELECT COUNT(*) FROM DANGKY WHERE MALTC = ? AND (HUYDANGKY = 0 OR HUYDANGKY IS NULL)", (maltc,))
+                so_sv_dangky = cursor.fetchone()[0]
+                if so_sv_dangky > 0:
+                    # Chặn sửa các thông tin cốt lõi
+                    if (nienkhoa != old_nk or int(hocky) != old_hk or mamh != old_mh or
+                        int(nhom) != old_nhom or makhoa != old_mk):
+                        flash('Lỗi: Lớp tín chỉ đã có sinh viên đăng ký, không được sửa đổi thông tin chính (Môn/Nhóm/HK/NK/Khoa).')
+                        return redirect(url_for('loptinchi'))
+                    # Check số SV tối thiểu
+                    if int(sosvtoithieu) < so_sv_dangky:
+                        flash(f'Lỗi: Số sinh viên tối thiểu ({sosvtoithieu}) không được nhỏ hơn số sinh viên đã đăng ký thực tế ({so_sv_dangky}).')
+                        return redirect(url_for('loptinchi'))
+
             cursor.execute("EXEC SP_SUA_LOPTINCHI ?, ?, ?, ?, ?, ?, ?, ?",
                            (maltc, nienkhoa, hocky, mamh, nhom, magv, makhoa, sosvtoithieu))
             row = cursor.fetchone()
@@ -1266,10 +1690,10 @@ def loptinchi_ghi():
             if row and row.KETQUA == 1 and old:
                 push_history('SUA_LTC', f'Sửa lớp TC #{maltc}',
                              {'maltc': maltc,
-                              'nienkhoa_cu': old.NIENKHOA.strip(), 'hocky_cu': old.HOCKY,
-                              'mamh_cu': old.MAMH.strip(), 'nhom_cu': old.NHOM,
-                              'magv_cu': old.MAGV.strip(), 'makhoa_cu': old.MAKHOA.strip(),
-                              'sosv_cu': old.SOSVTOITHIEU})
+                              'nienkhoa_cu': old_nk, 'hocky_cu': old_hk,
+                              'mamh_cu': old_mh, 'nhom_cu': old_nhom,
+                              'magv_cu': old_gv, 'makhoa_cu': old_mk,
+                              'sosv_cu': old_sosv})
         except Exception as e:
             flash(f'Lỗi: {e}')
         finally:
@@ -1281,6 +1705,7 @@ def loptinchi_ghi():
 @require_group('PGV')
 def loptinchi_xoa():
     maltc = request.form.get('maltc', 0)
+    action_type = request.form.get('action_type', 'huy_lop')
     conn, _ = get_db()
     if conn:
         try:
@@ -1290,19 +1715,79 @@ def loptinchi_xoa():
             cursor.execute("SELECT NIENKHOA FROM LOPTINCHI WHERE MALTC = ?", (maltc,))
             r = cursor.fetchone()
             if r and is_frozen(r.NIENKHOA):
-                flash(f"Lỗi: Không thể xóa lớp tín chỉ #{maltc} vì dữ liệu lịch sử đã bị đóng băng.", "error")
+                flash(f"Lỗi: Không thể thay đổi lớp tín chỉ #{maltc} vì dữ liệu lịch sử đã bị đóng băng.", "error")
                 return redirect(url_for('loptinchi'))
 
+            cursor.execute("SELECT NIENKHOA,HOCKY,MAMH,NHOM,MAGV,MAKHOA,SOSVTOITHIEU FROM LOPTINCHI WHERE MALTC=?", (maltc,))
+            old = cursor.fetchone()
+            if not old:
+                flash("Lớp tín chỉ không tồn tại.")
+                return redirect(url_for('loptinchi'))
+
+            if action_type == 'xoa_vinh_vien':
+                # Gọi SP xóa vật lý lớp tín chỉ (chỉ được khi chưa có SV đăng ký)
+                cursor.execute("EXEC SP_HOANTAC_THEM_LOPTINCHI ?", (maltc,))
+                row = cursor.fetchone()
+                conn.commit()
+                flash(row.THONGBAO if row else 'Xóa vĩnh viễn thành công.')
+                if row and row.KETQUA == 1:
+                    push_history('XOA_VINH_VIEN_LTC',
+                                 f'Xóa vĩnh viễn lớp TC #{maltc} — {old.MAMH.strip()} Nhóm {old.NHOM}',
+                                 {'maltc': maltc, 'nienkhoa': old.NIENKHOA.strip(), 'hocky': old.HOCKY, 
+                                  'mamh': old.MAMH.strip(), 'nhom': old.NHOM, 'magv': old.MAGV.strip(), 
+                                  'makhoa': old.MAKHOA.strip(), 'sosvtoithieu': old.SOSVTOITHIEU})
+            else:
+                # Gọi SP hủy lớp tín chỉ (set HUYLOP = 1)
+                cursor.execute("EXEC SP_XOA_LOPTINCHI ?", (maltc,))
+                row = cursor.fetchone()
+                conn.commit()
+                flash(row.THONGBAO if row else 'Hủy thành công.')
+                if row and row.KETQUA == 1:
+                    push_history('XOA_LTC',
+                                 f'Hủy lớp TC #{maltc} — {old.MAMH.strip()} Nhóm {old.NHOM} NK {old.NIENKHOA.strip()} HK{old.HOCKY}',
+                                 {'maltc': maltc})
+        except Exception as e:
+            flash(f'Lỗi: {e}')
+        finally:
+            conn.close()
+    return redirect(url_for('loptinchi'))
+
+
+@app.route('/loptinchi/phuchoi', methods=['POST'])
+@require_group('PGV')
+def loptinchi_phuchoi():
+    """Mở lại lớp tín chỉ đã hủy (HUYLOP = 0)"""
+    maltc = request.form.get('maltc', 0)
+    conn, _ = get_db()
+    if conn:
+        try:
+            cursor = conn.cursor()
+            
+            # KIỂM TRA ĐÓNG BĂNG
+            cursor.execute("SELECT NIENKHOA FROM LOPTINCHI WHERE MALTC = ?", (maltc,))
+            r = cursor.fetchone()
+            if r and is_frozen(r.NIENKHOA):
+                flash(f"Lỗi: Không thể mở lại lớp tín chỉ #{maltc} vì dữ liệu lịch sử đã bị đóng băng.", "error")
+                return redirect(url_for('loptinchi'))
+
+            # Check xem khi mở lại có trùng tổ hợp lớp khác đang hoạt động không
             cursor.execute("SELECT NIENKHOA,HOCKY,MAMH,NHOM FROM LOPTINCHI WHERE MALTC=?", (maltc,))
             old = cursor.fetchone()
-            cursor.execute("EXEC SP_XOA_LOPTINCHI ?", (maltc,))
+            if old:
+                cursor.execute("""
+                    SELECT COUNT(*) FROM LOPTINCHI 
+                    WHERE NIENKHOA = ? AND HOCKY = ? AND MAMH = ? AND NHOM = ? AND HUYLOP = 0 AND MALTC <> ?
+                """, (old.NIENKHOA, old.HOCKY, old.MAMH, old.NHOM, maltc))
+                if cursor.fetchone()[0] > 0:
+                    flash('Lỗi: Trùng tổ hợp Môn học, Nhóm, HK, NK với lớp khác đang hoạt động. Không thể phục hồi.')
+                    return redirect(url_for('loptinchi'))
+
+            cursor.execute("EXEC SP_PHUCHOI_LOPTINCHI ?", (maltc,))
             row = cursor.fetchone()
             conn.commit()
-            flash(row.THONGBAO if row else 'Hủy thành công.')
-            if row and row.KETQUA == 1 and old:
-                push_history('XOA_LTC',
-                             f'Hủy lớp TC #{maltc} — {old.MAMH.strip()} Nhóm {old.NHOM} NK {old.NIENKHOA.strip()} HK{old.HOCKY}',
-                             {'maltc': maltc})
+            flash(row.THONGBAO if row else 'Mở lại lớp thành công.')
+            if row and row.KETQUA == 1:
+                push_history('MO_LAI_LTC', f'Mở lại lớp TC #{maltc}', {'maltc': maltc})
         except Exception as e:
             flash(f'Lỗi: {e}')
         finally:
@@ -1517,7 +2002,7 @@ def dangky():
                            hoten=session.get('hoten'),
                            masv=masv,
                            malop=malop_sv,
-                           nienkhoa_list=filtered_nk,
+                           nienkhoa_list=nk_list,
                            group=session.get('group'))
 
 
@@ -2034,6 +2519,208 @@ def in_dssv_dangky():
                            mamh=mamh,
                            nhom=nhom,
                            tenmh_hienthi=tenmh_hienthi)
+
+
+@app.route('/baocao/bangdiem_monhoc', methods=['GET', 'POST'])
+def in_bangdiem_monhoc():
+    if 'username' not in session or session.get('role') != 'GV':
+         flash('Bạn không có quyền truy cập trang này.', 'danger')
+         return redirect(url_for('dashboard'))
+
+    conn, error = get_db()
+    if not conn:
+        flash(f'Lỗi kết nối: {error}', 'danger')
+        return redirect(url_for('dashboard'))
+
+    cursor = conn.cursor()
+    
+    # 1. Lấy danh sách Môn Học đổ vào Dropdown để chọn
+    try:
+        cursor.execute("SELECT MAMH, TENMH FROM MONHOC ORDER BY TENMH")
+        ds_monhoc = [{'MAMH': row.MAMH.strip(), 'TENMH': row.TENMH.strip()} for row in cursor.fetchall()]
+    except Exception as e:
+        ds_monhoc = []
+        flash(f"Lỗi lấy danh sách Môn học: {str(e)}", "danger")
+
+    # Các biến chứa dữ liệu báo cáo
+    ds_baocao = []
+    nienkhoa = request.form.get('nienkhoa', '')
+    hocky = request.form.get('hocky', '')
+    mamh = request.form.get('mamh', '')
+    nhom = request.form.get('nhom', '')
+    tenmh_hienthi = ''
+    makhoa_hienthi = ''
+
+    # 2. Khi người dùng nhấn nút Trích xuất
+    if request.method == 'POST' and request.form.get('action') == 'filter':
+        try:
+            # Gọi SP In bảng điểm môn học
+            cursor.execute("{CALL SP_InBangDiemMonHoc(?, ?, ?, ?)}", (nienkhoa, hocky, mamh, nhom))
+            rows = cursor.fetchall()
+            for r in rows:
+                ds_baocao.append({
+                    'MASV': r.MASV.strip(),
+                    'HO': r.HO.strip(),
+                    'TEN': r.TEN.strip(),
+                    'DIEM_CC': r.DIEM_CC,
+                    'DIEM_GK': r.DIEM_GK,
+                    'DIEM_CK': r.DIEM_CK,
+                    'DIEM_HM': r.DIEM_HM
+                })
+            
+            # Tìm tên môn học dựa vào mã môn để in lên giấy
+            tenmh_hienthi = next((m['TENMH'] for m in ds_monhoc if m['MAMH'] == mamh), mamh)
+            
+            # Lấy tên khoa hiện tại của user để in
+            makhoa_hienthi = session.get('tenkhoa', '')
+            
+            if len(ds_baocao) == 0:
+                flash('Không tìm thấy dữ liệu điểm cho lớp tín chỉ này!', 'warning')
+
+        except pyodbc.Error as e:
+            flash(f'Lỗi truy xuất dữ liệu: {e.args[1]}', 'danger')
+
+    conn.close()
+
+    return render_template('in_bangdiem_monhoc.html', 
+                           ds_monhoc=ds_monhoc, 
+                           ds_baocao=ds_baocao, 
+                           nienkhoa=nienkhoa, 
+                           hocky=hocky, 
+                           mamh=mamh,
+                           nhom=nhom,
+                           tenmh_hienthi=tenmh_hienthi,
+                           makhoa_hienthi=makhoa_hienthi)
+
+
+@app.route('/baocao/phieu_diem', methods=['GET', 'POST'])
+def in_phieu_diem():
+    if 'username' not in session or session.get('role') != 'GV':
+         flash('Bạn không có quyền truy cập trang này.', 'danger')
+         return redirect(url_for('dashboard'))
+
+    ds_baocao = []
+    masv = request.form.get('masv', '').strip().upper()
+    student_info = None
+
+    if request.method == 'POST' and request.form.get('action') == 'filter' and masv:
+        conn, error = get_db()
+        if conn:
+            try:
+                cursor = conn.cursor()
+                
+                # Lấy thông tin sinh viên
+                cursor.execute("""
+                    SELECT SV.MASV, RTRIM(SV.HO) + ' ' + RTRIM(SV.TEN) AS HOTEN, L.TENLOP
+                    FROM SINHVIEN SV
+                    INNER JOIN LOP L ON SV.MALOP = L.MALOP
+                    WHERE SV.MASV = ?
+                """, (masv,))
+                s_row = cursor.fetchone()
+                if s_row:
+                    student_info = {
+                        'MASV': s_row.MASV.strip(),
+                        'HOTEN': s_row.HOTEN.strip(),
+                        'TENLOP': s_row.TENLOP.strip()
+                    }
+                    
+                    # Gọi SP In phiếu điểm
+                    cursor.execute("{CALL SP_InPhieuDiem(?)}", (masv,))
+                    rows = cursor.fetchall()
+                    for r in rows:
+                        ds_baocao.append({
+                            'TENMH': r.TENMH.strip(),
+                            'DIEM_MAX': r.DIEM_MAX
+                        })
+                    
+                    if len(ds_baocao) == 0:
+                        flash('Sinh viên chưa tích lũy điểm môn học nào!', 'warning')
+                else:
+                    flash('Không tìm thấy sinh viên có mã này trong hệ thống!', 'danger')
+            except pyodbc.Error as e:
+                flash(f'Lỗi truy xuất dữ liệu: {e.args[1]}', 'danger')
+            finally:
+                conn.close()
+
+    return render_template('in_phieu_diem.html', 
+                           ds_baocao=ds_baocao, 
+                           masv=masv,
+                           student_info=student_info)
+
+
+@app.route('/baocao/bangdiem_tongket', methods=['GET', 'POST'])
+def in_bangdiem_tongket():
+    if 'username' not in session or session.get('role') != 'GV':
+         flash('Bạn không có quyền truy cập trang này.', 'danger')
+         return redirect(url_for('dashboard'))
+
+    conn, error = get_db()
+    if not conn:
+        flash(f'Lỗi kết nối: {error}', 'danger')
+        return redirect(url_for('dashboard'))
+
+    cursor = conn.cursor()
+    
+    # Lấy danh sách Lớp Cử Nhân đổ vào Dropdown để chọn
+    try:
+        cursor.execute("EXEC SP_GET_DSLOP NULL")
+        ds_lop = [{'MALOP': row.MALOP.strip(), 'TENLOP': row.TENLOP.strip(), 'KHOAHOC': row.KHOAHOC.strip(), 'TENKHOA': row.TENKHOA.strip()} for row in cursor.fetchall()]
+    except Exception as e:
+        ds_lop = []
+        flash(f"Lỗi lấy danh sách Lớp: {str(e)}", "danger")
+
+    ds_baocao_students = []
+    monhoc_cols = []
+    malop_chon = request.form.get('malop', '')
+    lop_info = None
+
+    if request.method == 'POST' and request.form.get('action') == 'filter' and malop_chon:
+        try:
+            # Lấy thông tin lớp được chọn để in header
+            lop_info = next((l for l in ds_lop if l['MALOP'] == malop_chon), None)
+            
+            cursor.execute("{CALL SP_InBangDiemTongKet(?)}", (malop_chon,))
+            raw_rows = cursor.fetchall()
+            
+            subject_set = set()
+            student_map = {}
+            
+            for r in raw_rows:
+                masv = r.MASV.strip()
+                hoten = r.HOTEN.strip()
+                tenmh = r.TENMH.strip() if r.TENMH else None
+                diem = r.DIEM_MAX
+                
+                if tenmh:
+                    subject_set.add(tenmh)
+                
+                if masv not in student_map:
+                    student_map[masv] = {
+                        'MASV': masv,
+                        'HOTEN': hoten,
+                        'DIEM': {}
+                    }
+                
+                if tenmh:
+                    student_map[masv]['DIEM'][tenmh] = diem
+            
+            monhoc_cols = sorted(list(subject_set))
+            ds_baocao_students = list(student_map.values())
+            
+            if len(ds_baocao_students) == 0:
+                flash('Lớp cử nhân này hiện không có sinh viên!', 'warning')
+            
+        except pyodbc.Error as e:
+            flash(f'Lỗi truy xuất dữ liệu: {e.args[1]}', 'danger')
+
+    conn.close()
+
+    return render_template('in_bangdiem_tongket.html',
+                           ds_lop=ds_lop,
+                           monhoc_cols=monhoc_cols,
+                           ds_baocao_students=ds_baocao_students,
+                           malop_chon=malop_chon,
+                           lop_info=lop_info)
 
 
 if __name__ == '__main__':

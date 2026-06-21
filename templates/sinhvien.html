@@ -323,7 +323,7 @@
                 {% if malop_chon %}
                 <h2>Sinh viên lớp: <span style="color:#f87171;">{{ malop_chon }}</span></h2>
                 <div class="toolbar">
-                    <button class="btn btn-primary btn-sm" id="btnThem" onclick="themMoi()" {% if is_current_frozen %}disabled style="filter:grayscale(1); opacity:0.4; cursor:not-allowed;" title="Lớp đã đóng băng, không thể tạo Sinh viên mới"{% endif %}>＋ Tạo mới</button>
+                    <button class="btn btn-primary btn-sm" id="btnThem" onclick="themMoi()" {% if is_current_frozen %}disabled style="filter:grayscale(1); opacity:0.4; cursor:not-allowed;" title="Lớp đã khóa, không thể tạo Sinh viên mới"{% endif %}>＋ Tạo mới</button>
                     <button class="btn btn-danger btn-sm" id="btnXoa" onclick="xoaDong()" disabled>🗑 Xóa</button>
                     <button class="btn btn-primary btn-sm" id="btnGhi" onclick="ghiDulieu()" disabled>💾 Lưu dữ
                         liệu</button>
@@ -348,7 +348,7 @@
                         <tr class="{% if sv.IS_FROZEN %}frozen-row{% endif %}" onclick="chonDong(this, '{{ sv.MASV }}', '{{ sv.HO }}', '{{ sv.TEN }}', {{ sv.PHAI }}, '{{ sv.DIACHI }}', '{{ sv.NGAYSINH }}', '{{ sv.MALOP }}', {{ 1 if sv.DANGHIHOC else 0 }}, {{ 'true' if sv.IS_FROZEN else 'false' }})">
                             <td>
                                 {{ sv.MASV }}
-                                {% if sv.IS_FROZEN %}<span class="frozen-badge" title="Hồ sơ đã bị đóng băng">🔒</span>{% endif %}
+                                {% if sv.IS_FROZEN %}<span class="frozen-badge" title="Hồ sơ đã khóa">🔒</span>{% endif %}
                             </td>
                             <td>{{ sv.HO }} {{ sv.TEN }}</td>
                             <td>{{ 'Nữ' if sv.PHAI == 1 else 'Nam' }}</td>
@@ -448,7 +448,7 @@
             sel = masv;
 
             if (isFrozen) {
-                setValidationMsg('fMASV', '⚠️ Hồ sơ thuộc khóa cũ đã bị đóng băng, không thể chỉnh sửa.', true);
+                setValidationMsg('fMASV', '⚠️ Hồ sơ thuộc khóa cũ đã khóa, không thể chỉnh sửa.', true);
                 toggleFormLock(true, ['fMASV', 'fHO', 'fTEN', 'fPHAI', 'fNGAY', 'fDIACHI', 'fMALOP']);
                 updateActionButtons('error');
             } else {

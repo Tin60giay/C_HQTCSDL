@@ -89,7 +89,7 @@
                 onclick="chonDong(this, '{{ l.MALOP }}', '{{ l.TENLOP }}', '{{ l.KHOAHOC }}', '{{ l.MAKHOA }}', {{ 'true' if l.IS_FROZEN else 'false' }})">
                 <td>
                     {{ l.MALOP }}
-                    {% if l.IS_FROZEN %}<span class="frozen-badge" title="Dữ liệu lịch sử đã bị đóng băng">🔒</span>{% endif %}
+                    {% if l.IS_FROZEN %}<span class="frozen-badge" title="Dữ liệu lịch sử đã khóa">🔒</span>{% endif %}
                 </td>
                 <td>{{ l.TENLOP }}</td>
                 <td>{{ l.KHOAHOC }}</td>
@@ -238,7 +238,7 @@ function chonDong(row, malop, tenlop, khoahoc, makhoa, isFrozen) {
     sel = malop;
 
     if (isFrozen) {
-        setValidationMsg('fMALOP', '⚠️ Dữ liệu lịch sử đã bị đóng băng, không thể chỉnh sửa.', true);
+        setValidationMsg('fMALOP', '⚠️ Dữ liệu lịch sử đã khóa, không thể chỉnh sửa.', true);
         toggleFormLock(true, ['fMALOP', 'fTENLOP', 'fKHOAHOC', 'fMAKHOA']);
         updateActionButtons('error');
     } else {
