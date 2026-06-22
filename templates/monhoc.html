@@ -288,7 +288,7 @@
                         <td>{{ m.SOTIET_TH }}</td>
                         <td>
                             {% if m.IS_FROZEN %}
-                                <span class="badge badge-muted">Đã dạy (Khóa) 🔒</span>
+                                <span class="badge badge-muted">Đã dạy 🔒</span>
                             {% else %}
                                 <span class="badge badge-success">Chưa giảng dạy ✨</span>
                             {% endif %}
@@ -371,16 +371,47 @@
         function validateMonHocLT_TH() {
             const fLT = document.getElementById('fLT');
             const fTH = document.getElementById('fTH');
-            let lt = parseInt(fLT.value); 
-            let th = parseInt(fTH.value);
             
-            let ltErr = isNaN(lt) || lt < 30;
-            let thErr = isNaN(th) || th < 0;
+            const ltVal = fLT.value.trim();
+            const thVal = fTH.value.trim();
+            
+            let lt = parseInt(ltVal);
+            let th = parseInt(thVal);
+            
+            let ltErr = false;
+            let ltMsg = 'Hợp lệ.';
+            if (ltVal === '') {
+                ltErr = true;
+                ltMsg = 'Vui lòng nhập số tiết lý thuyết.';
+            } else if (isNaN(lt) || lt < 0) {
+                ltErr = true;
+                ltMsg = 'Số tiết lý thuyết không được âm.';
+            }
+            
+            let thErr = false;
+            let thMsg = 'Hợp lệ.';
+            if (thVal === '') {
+                thErr = true;
+                thMsg = 'Vui lòng nhập số tiết thực hành.';
+            } else if (isNaN(th) || th < 0) {
+                thErr = true;
+                thMsg = 'Số tiết thực hành không được âm.';
+            }
+            
+            // Tổng số tiết phải >= 1
+            let totalErr = false;
+            if (!ltErr && !thErr && (lt + th < 1)) {
+                totalErr = true;
+                ltErr = true;
+                thErr = true;
+                ltMsg = 'Tổng số tiết phải từ 1 trở lên.';
+                thMsg = 'Tổng số tiết phải từ 1 trở lên.';
+            }
+            
+            setValidationMsg('fLT', ltMsg, ltErr);
+            setValidationMsg('fTH', thMsg, thErr);
 
-            setValidationMsg('fLT', ltErr ? 'Tiết Lý thuyết phải từ 30 trở lên.' : 'Hợp lệ.', ltErr);
-            setValidationMsg('fTH', thErr ? 'Tiết Thực hành không được âm.' : 'Hợp lệ.', thErr);
-
-            if (ltErr || thErr) {
+            if (ltErr || thErr || totalErr) {
                 updateActionButtons('error');
             } else {
                 // Kiểm tra lỗi mã trước khi unlock
@@ -490,7 +521,7 @@
             // [PLANT_LTC_BUGS_2026] Bỏ làm mờ khi tạo mới
             clearReadonlyStyle(fM);
             document.getElementById('fTENMH').value = '';
-            document.getElementById('fLT').value = '30';
+            document.getElementById('fLT').value = '15';
             document.getElementById('fTH').value = '0';
             toggleFormLock(false, ['fTENMH', 'fLT', 'fTH']);
             updateActionButtons('idle');
