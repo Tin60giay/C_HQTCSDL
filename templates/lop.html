@@ -78,6 +78,7 @@
             <input type="text" id="filterText" oninput="locBang()" placeholder="🔍 Tìm mã/tên lớp..." style="max-width:300px;font-size:.875rem;padding:.45rem .75rem;">
         </div>
 
+        <div style="max-height:400px; overflow-y:auto;">
         <table id="tblLop">
             <thead>
                 <tr><th>Mã Lớp</th><th>Tên Lớp</th><th>Khóa Học</th><th>Khoa Quản Lý</th></tr>
@@ -88,7 +89,7 @@
                 onclick="chonDong(this, '{{ l.MALOP }}', '{{ l.TENLOP }}', '{{ l.KHOAHOC }}', '{{ l.MAKHOA }}', {{ 'true' if l.IS_FROZEN else 'false' }})">
                 <td>
                     {{ l.MALOP }}
-                    {% if l.IS_FROZEN %}<span class="frozen-badge" title="Dữ liệu lịch sử đã bị đóng băng">🔒</span>{% endif %}
+                    {% if l.IS_FROZEN %}<span class="frozen-badge" title="Dữ liệu lịch sử đã khóa">🔒</span>{% endif %}
                 </td>
                 <td>{{ l.TENLOP }}</td>
                 <td>{{ l.KHOAHOC }}</td>
@@ -99,6 +100,7 @@
             {% endfor %}
             </tbody>
         </table>
+        </div>
     </div>
 
     <div class="card" id="formCard">
@@ -236,19 +238,21 @@ function chonDong(row, malop, tenlop, khoahoc, makhoa, isFrozen) {
     sel = malop;
 
     if (isFrozen) {
-        setValidationMsg('fMALOP', '⚠️ Dữ liệu lịch sử đã bị đóng băng, không thể chỉnh sửa.', true);
+        setValidationMsg('fMALOP', '⚠️ Dữ liệu lịch sử đã khóa, không thể chỉnh sửa.', true);
         toggleFormLock(true, ['fMALOP', 'fTENLOP', 'fKHOAHOC', 'fMAKHOA']);
         updateActionButtons('error');
     } else {
         resetValidationState('fMALOP');
+        // [PLANT_LTC_BUGS_2026] Vẫn làm mờ Mã Lớp (khóa chính) dù không frozen
+        toggleFormLock(true, ['fMALOP']);
         toggleFormLock(false, ['fTENLOP', 'fKHOAHOC', 'fMAKHOA']);
         updateActionButtons('editing');
     }
 
     const fM = document.getElementById('fMALOP');
     fM.value = malop;
-    fM.readOnly = true; // Luôn readonly cho khóa chính khi đang chọn (Edit)
-    fM.style.borderColor = isFrozen ? '#fca5a5' : 'var(--border)';
+    // [PLANT_LTC_BUGS_2026] Luôn readOnly cho khóa chính khi đang chọn (Edit)
+    applyReadonlyStyle(fM, isFrozen);
     
     document.getElementById('fTENLOP').value = tenlop;
     document.getElementById('fKHOAHOC').value = khoahoc;
@@ -278,10 +282,13 @@ function xoaTrang() {
     document.querySelectorAll('#tblLop tr').forEach(r => r.classList.remove('selected'));
     sel = null;
     const fM = document.getElementById('fMALOP');
-    fM.value = ''; fM.readOnly = false; fM.style.borderColor = 'var(--border)';
+    fM.value = '';
+    // [PLANT_LTC_BUGS_2026] Bỏ làm mờ khi tạo mới
+    clearReadonlyStyle(fM);
     document.getElementById('fTENLOP').value = '';
     document.getElementById('fKHOAHOC').value = '';
     document.getElementById('fMAKHOA').selectedIndex = 0;
+    toggleFormLock(false, ['fTENLOP', 'fKHOAHOC', 'fMAKHOA']);
     updateActionButtons('idle');
     fM.focus();
 }

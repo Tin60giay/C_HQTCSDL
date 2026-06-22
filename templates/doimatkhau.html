@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Đổi Mật Khẩu</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #c01920;
+            --primary-dark: #8c1015;
+            --bg-body: #0a0a0a;
+            --bg-card: #1a1a1a;
+            --bg-input: #111;
+            --text-main: #fff;
+            --border: #3f3f46;
+            --radius: 12px;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: radial-gradient(circle at top, var(--bg-card), var(--bg-body) 70%);
+            padding: 2rem;
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .container {
+            background: var(--bg-card);
+            padding: 2.5rem;
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            width: 100%;
+            max-width: 500px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .header h2 {
+            margin: 0 0 0.5rem 0;
+            color: #ff7f50;
+            text-transform: uppercase;
+            font-size: 1.8rem;
+        }
+
+        .header p {
+            margin: 0;
+            color: #d1d5db;
+            font-size: 0.95rem;
+        }
+
+        .fg {
+            margin-bottom: 1.5rem;
+        }
+
+        .fg label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+        }
+
+        .fg input {
+            width: 100%;
+            padding: 10px 14px;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-main);
+            font-size: 0.95rem;
+            outline: none;
+            transition: 0.3s;
+        }
+
+        .fg input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(192, 25, 32, 0.2);
+        }
+
+        .password-container {
+            position: relative;
+            display: flex;
+        }
+
+        .eye-icon {
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            cursor: pointer;
+            user-select: none;
+            color: #9ca3af;
+            font-size: 1.2rem;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 1rem;
+            margin-top: 2.5rem;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 0.8rem;
+            font-size: 1.1rem;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+            text-align: center;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-dark);
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: white;
+        }
+
+        .btn-outline:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+
+        #alertBox {
+            padding: 0.8rem;
+            border-radius: 6px;
+            margin-bottom: 1.5rem;
+            display: none;
+            text-align: center;
+        }
+        
+        .alert-error {
+            background: rgba(220, 38, 38, 0.15);
+            color: #fca5a5;
+            border: 1px solid rgba(220, 38, 38, 0.3);
+        }
+        
+        .alert-success {
+            background: rgba(34, 197, 94, 0.15);
+            color: #86efac;
+            border: 1px solid rgba(34, 197, 94, 0.3);
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="header">
+            <h2>Đổi Mật Khẩu</h2>
+            <p>Xin chào, <strong>{{ hoten }}</strong></p>
+        </div>
+
+        <div id="alertBox"></div>
+
+        <form id="frmDoiMK" onsubmit="event.preventDefault(); submitDoiMK();">
+            <div class="fg">
+                <label>Mật khẩu hiện tại</label>
+                <div class="password-container">
+                    <input type="password" id="txtOldPass" required placeholder="Nhập mật khẩu hiện tại...">
+                    <span class="eye-icon" onclick="togglePassword('txtOldPass', this)">👁️</span>
+                </div>
+            </div>
+
+            <div class="fg">
+                <label>Mật khẩu mới</label>
+                <div class="password-container">
+                    <input type="password" id="txtNewPass" required placeholder="Nhập mật khẩu mới...">
+                    <span class="eye-icon" onclick="togglePassword('txtNewPass', this)">👁️</span>
+                </div>
+            </div>
+
+            <div class="fg">
+                <label>Nhập lại mật khẩu mới</label>
+                <div class="password-container">
+                    <input type="password" id="txtConfirmPass" required placeholder="Xác nhận lại mật khẩu mới...">
+                    <span class="eye-icon" onclick="togglePassword('txtConfirmPass', this)">👁️</span>
+                </div>
+            </div>
+
+            <div class="btn-group">
+                <button type="button" class="btn btn-outline" onclick="window.location.href='/dashboard'">Quay lại</button>
+                <button type="submit" class="btn btn-primary" id="btnSubmit">Xác nhận đổi</button>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        function togglePassword(inputId, iconElement) {
+            const input = document.getElementById(inputId);
+            if (input.type === 'password') {
+                input.type = 'text';
+                iconElement.textContent = '🙈';
+            } else {
+                input.type = 'password';
+                iconElement.textContent = '👁️';
+            }
+        }
+
+        function showAlert(msg, type) {
+            const box = document.getElementById('alertBox');
+            box.textContent = msg;
+            box.className = type === 'error' ? 'alert-error' : 'alert-success';
+            box.style.display = 'block';
+        }
+
+        async function submitDoiMK() {
+            const oldPass = document.getElementById('txtOldPass').value;
+            const newPass = document.getElementById('txtNewPass').value;
+            const confirmPass = document.getElementById('txtConfirmPass').value;
+
+            if (!oldPass || !newPass || !confirmPass) {
+                showAlert('Vui lòng nhập đầy đủ thông tin!', 'error');
+                return;
+            }
+
+            if (newPass !== confirmPass) {
+                showAlert('Mật khẩu mới và Nhập lại mật khẩu không khớp!', 'error');
+                return;
+            }
+
+            const btnSubmit = document.getElementById('btnSubmit');
+            btnSubmit.disabled = true;
+            btnSubmit.textContent = 'Đang xử lý...';
+
+            try {
+                const res = await fetch('/doimatkhau/submit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ old_pass: oldPass, new_pass: newPass })
+                });
+                const data = await res.json();
+                
+                if (data.ok) {
+                    showAlert(data.msg, 'success');
+                    document.getElementById('frmDoiMK').reset();
+                    // Tự động chuyển về dashboard sau 1.5s
+                    setTimeout(() => window.location.href = '/dashboard', 1500);
+                } else {
+                    showAlert(data.msg, 'error');
+                }
+            } catch (e) {
+                showAlert('Lỗi kết nối tới máy chủ', 'error');
+            } finally {
+                btnSubmit.disabled = false;
+                btnSubmit.textContent = 'Xác nhận đổi';
+            }
+        }
+    </script>
+</body>
+</html>

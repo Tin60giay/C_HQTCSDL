@@ -77,16 +77,20 @@
             <div class="fg" style="flex:1;min-width:160px;">
                 <label>Niên khóa</label>
                 <select id="fNK" onchange="autoTimLop()" style="width:100%;">
-                    <option value="">-- Chọn niên khóa --</option>
+                    {% if nienkhoa_list %}
                     {% for nk in nienkhoa_list %}
-                    <option value="{{ nk }}">{{ nk }}</option>
+                    {% set nk_start = nk.split('-')[0]|int if nk and '-' in nk else 0 %}
+                    <option value="{{ nk }}" {% if loop.first %}selected{% endif %}>{{ nk }}{% if nk_start and nk_start < 2025 %} 🔒{% endif %}</option>
                     {% endfor %}
+                    {% else %}
+                    <option value="">-- Chọn niên khóa --</option>
+                    {% endif %}
                 </select>
             </div>
             <div class="fg" style="min-width:140px;">
                 <label>Học kỳ</label>
                 <select id="fHK" onchange="autoTimLop()">
-                    <option value="1">Học kỳ 1</option>
+                    <option value="1" selected>Học kỳ 1</option>
                     <option value="2">Học kỳ 2</option>
                     <option value="3">Học kỳ 3</option>
                 </select>
@@ -151,9 +155,7 @@ async function timLop() {
     const hk = document.getElementById('fHK').value;
     const errEl = document.getElementById('errMsg');
     errEl.textContent = '';
-    if (!nk) { errEl.textContent = 'Vui lòng chọn niên khóa.'; return; }
-
-    document.getElementById('spinner').style.display = 'block';
+    if (!nk) { errEl.textContent = 'Vui lòng chọn niên khóa.'; return; }    document.getElementById('spinner').style.display = 'block';
     document.getElementById('ltcTable').style.display = 'none';
 
     try {
@@ -200,17 +202,25 @@ function renderAll() {
         selectedDiv.style.display = 'block';
         registeredLTCs.forEach(ltc => {
             const extraAttr = ltc.IS_FROZEN ? 'disabled style="filter:grayscale(1); opacity:0.4; cursor:not-allowed;" title="Lớp thuộc niên khóa cũ"' : '';
-            // [QUA_HAN_SP_2026] Nếu quá hạn → làm mờ nút hủy
-            const cancelBtn = QUAHAN
-                ? `<button class="btn btn-disabled btn-sm" disabled title="Bạn đã quá hạn 7 năm kể từ khóa học, không thể hủy đăng ký">Hủy đăng ký</button>`
-                : `<button class="btn btn-success btn-sm" onclick="xulyHuy(${ltc.MALTC}, '${ltc.TENMH}')" ${extraAttr}>Hủy đăng ký</button>`;
+            // [QUA_HAN_SP_2026] Nếu quá hạn hoặc đã bắt đầu nhập điểm → làm mờ nút hủy
+            let cancelBtn = '';
+            if (QUAHAN) {
+                cancelBtn = `<button class="btn btn-disabled btn-sm" disabled title="Bạn đã quá hạn 7 năm kể từ khóa học, không thể hủy đăng ký">Hủy đăng ký</button>`;
+            } else if (ltc.DA_NHAP_DIEM == 1 || ltc.CO_DIEM) {
+                cancelBtn = `<button class="btn btn-disabled btn-sm" disabled title="Không thể hủy vì đã được nhập điểm">Hủy đăng ký</button>`;
+            } else {
+                cancelBtn = `<button class="btn btn-success btn-sm" onclick="xulyHuy(${ltc.MALTC}, '${ltc.TENMH}')" ${extraAttr}>Hủy đăng ký</button>`;
+            }
             tbodySelected.innerHTML += `
                 <tr class="${ltc.IS_FROZEN ? 'frozen-row' : ''}">
                     <td><b>${ltc.MALTC}</b> ${ltc.IS_FROZEN ? '<span class="frozen-badge">🔒</span>' : ''}</td>
                     <td>${ltc.TENMH} <span class="badge badge-muted">${ltc.MAMH}</span></td>
                     <td>${ltc.NHOM}</td>
                     <td>${ltc.TENGV}</td>
-                    <td>${cancelBtn}</td>
+                    <td>
+                        ${cancelBtn}
+                        ${(ltc.CO_DIEM || ltc.DA_NHAP_DIEM == 1) ? '<span style="font-size:.7rem;color:#fbbf24;margin-left:.4rem;">📝 Đã có điểm</span>' : ''}
+                    </td>
                 </tr>`;
         });
     } else {
@@ -227,7 +237,6 @@ function renderAll() {
             const extraAttr = ltc.IS_FROZEN ? 'disabled style="filter:grayscale(1); opacity:0.4; cursor:not-allowed;" title="Lớp thuộc niên khóa cũ"' : '';
             
             let btnHtml = '';
-            // [QUA_HAN_SP_2026] Nếu SV quá hạn, tất cả nút bị làm mờ
             if (QUAHAN) {
                 const titleAttr = `title="Bạn đã quá hạn 7 năm kể từ khóa học, không thể đăng ký"`;
                 if (isRegisteredThisClass) {
@@ -236,7 +245,16 @@ function renderAll() {
                     btnHtml = `<button class="btn btn-disabled btn-sm" disabled ${titleAttr}>Đăng ký</button>`;
                 }
             } else if (isRegisteredThisClass) {
-                btnHtml = `<button class="btn btn-success btn-sm" onclick="xulyHuy(${ltc.MALTC}, '${ltc.TENMH}')" ${extraAttr}>Hủy đăng ký</button>`;
+                let cancelAttr = ltc.IS_FROZEN ? 'disabled style="filter:grayscale(1); opacity:0.4; cursor:not-allowed;" title="Lớp thuộc niên khóa cũ"' : '';
+                if (!ltc.IS_FROZEN && (ltc.CO_DIEM || ltc.DA_NHAP_DIEM == 1)) {
+                    cancelAttr = 'disabled style="filter:grayscale(1); opacity:0.4; cursor:not-allowed;" title="Không thể hủy vì đã được nhập điểm"';
+                }
+                if (ltc.DA_NHAP_DIEM == 1 || ltc.CO_DIEM) {
+                    btnHtml = `<button class="btn btn-disabled btn-sm" disabled title="Lớp học đã bắt đầu nhập điểm, không thể hủy đăng ký">Hủy đăng ký</button>`;
+                } else {
+                    btnHtml = `<button class="btn btn-success btn-sm" onclick="xulyHuy(${ltc.MALTC}, '${ltc.TENMH}')" ${cancelAttr}>Hủy đăng ký</button>`;
+                }
+                if (ltc.CO_DIEM || ltc.DA_NHAP_DIEM == 1) btnHtml += '<span style="font-size:.7rem;color:#fbbf24;margin-left:.4rem;">📝</span>';
             } else if (isRegisteredOtherClassSameSubject) {
                 btnHtml = `<button class="btn btn-disabled btn-sm" title="Bạn đã đăng ký một lớp khác cho môn học này" ${extraAttr}>Đăng ký</button>`;
             } else {
@@ -258,7 +276,6 @@ function renderAll() {
 }
 
 async function xulyDangKy(maltc, tenmh) {
-    // [QUA_HAN_SP_2026] Nếu quá hạn → thông báo + chỉ cho xem bảng điểm
     if (QUAHAN) {
         alert('Bạn đã quá hạn 7 năm kể từ khóa học. Không thể đăng ký lớp tín chỉ. Vui lòng xem bảng điểm cá nhân.');
         return;
@@ -316,6 +333,15 @@ async function xulyHuy(maltc, tenmh) {
         document.querySelectorAll('.btn').forEach(b => b.disabled = false);
     }
 }
+
+// [PLANT_LTC_BUGS_2026] Tự động tải lớp tín chỉ khi mở trang
+document.addEventListener('DOMContentLoaded', () => {
+    const fNK = document.getElementById('fNK');
+    if (fNK && fNK.value) {
+        // Tự gọi tìm lớp ngay khi load
+        setTimeout(timLop, 100);
+    }
+});
 </script>
 </body>
 </html>

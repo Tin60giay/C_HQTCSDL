@@ -74,6 +74,7 @@
                 <input type="text" id="filterKhoa" oninput="locBang()" placeholder="🔍 Tìm mã hoặc tên khoa..." style="background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:.45rem .75rem;color:var(--text-main);font-family:inherit;font-size:.875rem;width:100%;max-width:360px;">
             </div>
 
+            <div style="max-height:400px; overflow-y:auto;">
             <table id="tblKhoa">
                 <thead>
                     <tr><th>Mã Khoa</th><th>Tên Khoa</th></tr>
@@ -89,6 +90,7 @@
                     {% endfor %}
                 </tbody>
             </table>
+            </div>
         </div>
 
         <div class="card" id="formCard">
@@ -153,7 +155,8 @@
             row.classList.add('selected');
             sel = makhoa;
             document.getElementById('fMAKHOA').value = makhoa;
-            document.getElementById('fMAKHOA').readOnly = true;
+            // [PLANT_LTC_BUGS_2026] Làm mờ khóa chính (không được sửa)
+            applyReadonlyStyle(document.getElementById('fMAKHOA'), false);
             document.getElementById('fTENKHOA').value = tenkhoa;
             orig = { makhoa, tenkhoa };
             updateActionButtons('editing');
@@ -201,7 +204,7 @@
             document.querySelectorAll('#tblKhoa tr').forEach(r => r.classList.remove('selected'));
             sel = null; orig = {};
             document.getElementById('fMAKHOA').value = '';
-            document.getElementById('fMAKHOA').readOnly = false;
+            clearReadonlyStyle(document.getElementById('fMAKHOA'));
             document.getElementById('fTENKHOA').value = '';
             updateActionButtons('idle');
             document.getElementById('fMAKHOA').focus();

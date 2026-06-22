@@ -5,6 +5,7 @@ const HISTORY_ICON = {
   THEM_SV:  '➕', XOA_SV:  '🗑', SUA_SV:  '✏️',
   THEM_MH:  '➕', XOA_MH:  '🗑', SUA_MH:  '✏️',
   THEM_LTC: '➕', XOA_LTC: '🚫', SUA_LTC: '✏️',
+  XOA_VINH_VIEN_LTC: '🗑', MO_LAI_LTC: '🔓',
   THEM_GV:  '➕', XOA_GV:  '🗑', SUA_GV:  '✏️',
 };
 
@@ -12,6 +13,46 @@ const CHILD_HINT = {
   XOA_LOP: 'Lưu ý: Nếu lớp đã có sinh viên thì xóa sẽ bị lỗi ràng buộc DB.',
   THEM_LOP: 'Hành động tạo Mới. Cần trọn vẹn xóa con trước khi hoàn tác.',
 };
+
+const HISTORY_KEY_MAP = {
+  THEM_KHOA: 'makhoa',
+  THEM_LOP: 'malop',
+  THEM_SV: 'masv',
+  THEM_MH: 'mamh',
+  THEM_GV: 'magv',
+  THEM_LTC: 'maltc',
+};
+
+const HISTORY_DEPENDENCY_RULES = [
+  { parent: 'THEM_KHOA', child: 'THEM_LOP', key: 'makhoa' },
+  { parent: 'THEM_KHOA', child: 'THEM_GV', key: 'makhoa' },
+  { parent: 'THEM_KHOA', child: 'THEM_LTC', key: 'makhoa' },
+  { parent: 'THEM_LOP', child: 'THEM_SV', key: 'malop' },
+  { parent: 'THEM_MH', child: 'THEM_LTC', key: 'mamh' },
+  { parent: 'THEM_GV', child: 'THEM_LTC', key: 'magv' },
+];
+
+function sameHistoryValue(a, b) {
+  return String(a ?? '').trim() !== '' && String(a ?? '').trim() === String(b ?? '').trim();
+}
+
+function isDependentHistoryAction(parent, child) {
+  if (!parent || !child || !parent.data || !child.data) return false;
+
+  for (const rule of HISTORY_DEPENDENCY_RULES) {
+    if (parent.type === rule.parent && child.type === rule.child &&
+        sameHistoryValue(parent.data[rule.key], child.data[rule.key])) {
+      return true;
+    }
+  }
+
+  if (parent.type && parent.type.startsWith('THEM_')) {
+    const key = HISTORY_KEY_MAP[parent.type];
+    return !!key && sameHistoryValue(parent.data[key], child.data[key]);
+  }
+
+  return false;
+}
 
 function _buildModal() {
   if (document.getElementById('historyModal')) return;
@@ -47,20 +88,38 @@ async function openHistory() {
       return;
     }
     
-    const nodes = historyDataRaw.map((item, id) => ({...item, id, isChild: false}));
+    const path = window.location.pathname;
+    let allowedTypes = [];
+    if (path.includes('/loptinchi')) {
+        allowedTypes = ['THEM_LTC', 'XOA_LTC', 'SUA_LTC', 'XOA_VINH_VIEN_LTC', 'MO_LAI_LTC'];
+    } else if (path.includes('/monhoc')) {
+        allowedTypes = ['THEM_MH', 'XOA_MH', 'SUA_MH'];
+    } else if (path.includes('/sinhvien')) {
+        allowedTypes = ['THEM_SV', 'XOA_SV', 'SUA_SV'];
+    } else if (path.includes('/lop')) {
+        allowedTypes = ['THEM_LOP', 'XOA_LOP', 'SUA_LOP'];
+    } else if (path.includes('/giangvien')) {
+        allowedTypes = ['THEM_GV', 'XOA_GV', 'SUA_GV'];
+    } else if (path.includes('/khoa')) {
+        allowedTypes = ['THEM_KHOA', 'XOA_KHOA', 'SUA_KHOA'];
+    }
+
+    let nodes = historyDataRaw.map((item, id) => ({...item, id, isChild: false}));
+    nodes = nodes.filter(node => allowedTypes.includes(node.type));
+
+    if (nodes.length === 0) {
+      list.innerHTML = '<p style="color:#a1a1aa;text-align:center;padding:2rem;">Chưa có thao tác nào được ghi lại cho chức năng này.</p>';
+      return;
+    }
     
     for(let i = 0; i < nodes.length; i++) {
         let child = nodes[i];
         for(let j = i + 1; j < nodes.length; j++) {
             let parent = nodes[j];
-            if (parent.type.startsWith('THEM_') || parent.type.startsWith('SUA_')) {
-                const keyMap = { 'THEM_LOP': 'malop', 'THEM_SV': 'masv', 'THEM_MH': 'mamh', 'THEM_GV': 'magv' };
-                const key = keyMap[parent.type] || parent.type.split('_')[1].toLowerCase();
-                if (child.data[key] && child.data[key] === parent.data[key]) {
-                   child.isChild = true;
-                   child.parentId = j;
-                   break;
-                }
+            if (isDependentHistoryAction(parent, child)) {
+               child.isChild = true;
+               child.parentId = j;
+               break;
             }
         }
     }
@@ -75,16 +134,24 @@ async function openHistory() {
           bgStyle = 'background:#111; margin-left:1.5rem; margin-bottom:.6rem; border-left: 2px solid #52525b; border-bottom-left-radius: 0; border-top-left-radius: 0;';
       }
 
+      const isUndoable = node.can_undo !== false;
+      const titleText = isUndoable ? 'Hoàn tác thao tác này' : (node.cannot_undo_reason || 'Không đủ điều kiện để hoàn tác');
+      const btnStyle = isUndoable 
+        ? 'background:transparent;color:#fca5a5;border:1px solid #fca5a5;cursor:pointer;'
+        : 'background:rgba(82,82,91,0.2);color:#52525b;border:1px solid #3f3f46;cursor:not-allowed;';
+      const disabledAttr = isUndoable ? '' : 'disabled';
+
       return `
-      <div style="display:flex;align-items:center;gap:.6rem;padding:.65rem .75rem;border-radius:6px;border:1px solid #2a2a2a;${bgStyle}">
+      <div style="display:flex;align-items:center;gap:.6rem;padding:.65rem .75rem;border-radius:6px;border:1px solid #2a2a2a;${bgStyle}" title="${titleText}">
         ${prefix}
         <span style="font-size:1rem;">${icon}</span>
         <div style="flex:1;min-width:0;">
           <div style="font-size:.83rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600;">${node.label}</div>
           ${hint ? `<div style="font-size:.72rem;color:#c28;margin-top:.2rem;">${hint}</div>` : ''}
+          ${!isUndoable ? `<div style="font-size:.72rem;color:#fca5a5;margin-top:.2rem;font-weight:500;">⚠️ Bị khóa: ${node.cannot_undo_reason}</div>` : ''}
         </div>
-        <button onclick="doSingleTreeUndo(${node.id})"
-            style="background:transparent;color:#fca5a5;border:1px solid #fca5a5;border-radius:6px;padding:.3rem .7rem;font-size:.75rem;font-weight:600;cursor:pointer;white-space:nowrap;transition:0.1s;">
+        <button onclick="doSingleTreeUndo(${node.id})" ${disabledAttr}
+            style="${btnStyle}border-radius:6px;padding:.3rem .7rem;font-size:.75rem;font-weight:600;white-space:nowrap;transition:0.1s;">
             Hoàn tác
         </button>
       </div>`;
@@ -99,9 +166,7 @@ async function doSingleTreeUndo(idx) {
     let blockers = [];
     for(let j = 0; j < idx; j++) {
         let check = historyDataRaw[j];
-        const pType = targetAction.type;
-        const key = pType.startsWith('THEM_') ? pType.split('_')[1].toLowerCase() : null;
-        if (key && check.data[key] && check.data[key] === targetAction.data[key]) {
+        if (isDependentHistoryAction(targetAction, check)) {
             blockers.push(j);
         }
     }
@@ -210,7 +275,8 @@ function updateActionButtons(state) {
     } else if (state === 'editing') {
         if (btnThem) btnThem.disabled = true;
         if (btnGhi) { btnGhi.disabled = false; btnGhi.dataset.formActive = 'true'; }
-        if (btnXoa) btnXoa.disabled = false;
+        // Nút Xóa giữ disabled mặc định — chờ checkCanDelete() async trả kết quả mới re-enable
+        if (btnXoa) btnXoa.disabled = true;
         if (btnHuy) btnHuy.disabled = false;
     } else if (state === 'adding') {
         if (btnThem) btnThem.disabled = window.IS_FROZEN_CONTEXT ? true : false;
@@ -236,6 +302,7 @@ function toggleFormLock(isLocked, inputIds) {
                 el.style.backgroundColor = 'rgba(39, 39, 42, 0.4)';
                 el.style.color = '#52525b';
                 el.style.borderColor = '#fca5a5';
+                el.style.cursor = 'not-allowed';
             } else {
                 el.style.backgroundColor = '';
                 el.style.color = '';
@@ -243,6 +310,40 @@ function toggleFormLock(isLocked, inputIds) {
             }
         }
     });
+}
+
+/**
+ * [PLANT_LTC_BUGS_2026] Áp dụng style làm mờ cho 1 trường readOnly
+ * (khóa chính). Dùng khi chọn dòng để sửa - mã không được sửa nhưng
+ * phải có giao diện mờ để user biết là không chỉnh được.
+ */
+function applyReadonlyStyle(el, isFrozen) {
+    if (!el) return;
+    el.readOnly = true;
+    if (el.tagName === 'SELECT') {
+        el.disabled = true;
+    }
+    el.style.backgroundColor = 'rgba(39, 39, 42, 0.4)';
+    el.style.color = '#52525b';
+    el.style.borderColor = isFrozen ? '#fca5a5' : '#52525b';
+    el.style.cursor = 'not-allowed';
+    el.title = isFrozen ? '🔒 Dữ liệu lịch sử đã bị đóng băng' : '🔒 Khóa chính - không thể chỉnh sửa';
+}
+
+/**
+ * [PLANT_LTC_BUGS_2026] Xóa style làm mờ khi tạo mới
+ */
+function clearReadonlyStyle(el) {
+    if (!el) return;
+    el.readOnly = false;
+    if (el.tagName === 'SELECT') {
+        el.disabled = false;
+    }
+    el.style.backgroundColor = '';
+    el.style.color = '';
+    el.style.borderColor = 'var(--border)';
+    el.style.cursor = '';
+    el.title = '';
 }
 
 /**
@@ -269,8 +370,11 @@ function enableSaveOnInputFocus() {
     document.querySelectorAll('.form-grid input, .form-grid select, .form-grid textarea').forEach(el => {
         el.addEventListener('focus', () => {
             if (!formHasError) {
-                // Sửa lỗi: Chỉ bật nút Ghi nếu form đang ở chế độ chỉnh sửa (có chọn dòng)
-                const isSelected = typeof sel !== 'undefined' && sel !== null && sel !== '';
+                // Sửa lỗi: Kiểm tra cả sel (dùng ở khoa, lop, sinhvien, gv, ltc) 
+                // và selectedMAMH (dùng riêng ở monhoc.html)
+                const hasSel = typeof sel !== 'undefined' && sel !== null && sel !== '';
+                const hasSelectedMAMH = typeof selectedMAMH !== 'undefined' && selectedMAMH !== null && selectedMAMH !== '';
+                const isSelected = hasSel || hasSelectedMAMH;
                 const btnGhi = document.getElementById('btnGhi');
                 if (btnGhi && isSelected) {
                     btnGhi.disabled = false;
@@ -375,7 +479,10 @@ function resetValidationState(inputId) {
     if (!visibleErrors) {
         formHasError = false;
         // Tình trạng nút phụ thuộc vào việc có dữ liệu đang chọn hay không
-        const isEditing = typeof sel !== 'undefined' && sel !== null && sel !== '';
+        // Kiểm tra cả sel và selectedMAMH
+        const hasSel = typeof sel !== 'undefined' && sel !== null && sel !== '';
+        const hasSelectedMAMH = typeof selectedMAMH !== 'undefined' && selectedMAMH !== null && selectedMAMH !== '';
+        const isEditing = hasSel || hasSelectedMAMH;
         updateActionButtons(isEditing ? 'editing' : 'adding');
     }
 }

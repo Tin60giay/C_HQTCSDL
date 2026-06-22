@@ -38,7 +38,21 @@
         .alert-success{background:rgba(34,197,94,.15);border:1px solid rgba(34,197,94,.3);color:#86efac;}
         .alert-error{background:rgba(220,38,38,.15);border:1px solid rgba(220,38,38,.3);color:#fca5a5;}
         .back-link{color:#f87171;text-decoration:none;font-size:.85rem;font-weight:600;}
-        .badge-muted{background:#2a2a2a;color:var(--text-muted);padding:.15rem .4rem;border-radius:4px;font-size:.7rem;}
+        .badge {
+            display: inline-block;
+            padding: 0.2rem 0.5rem;
+            font-size: 0.72rem;
+            font-weight: 600;
+            border-radius: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.02em;
+        }
+        .badge-muted { background: rgba(82, 82, 91, 0.2); border: 1px solid rgba(82, 82, 91, 0.4); color: #a1a1aa; }
+        .badge-danger { background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #fca5a5; }
+        .badge-warning { background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.3); color: #fde047; }
+        .badge-success { background: rgba(59, 130, 246, 0.15); border: 1px solid rgba(59, 130, 246, 0.3); color: #93c5fd; }
+        .badge-info { background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3); color: #6ee7b7; }
+        .cancelled-row td { color: #71717a !important; background: rgba(24, 24, 27, 0.6) !important; text-decoration: line-through; }
         .frozen-row td { color: #52525b !important; background: rgba(39, 39, 42, 0.4) !important; }
         .frozen-badge { font-size: 0.7rem; color: #fbbf24; margin-left: 0.35rem; }
     </style>
@@ -55,21 +69,22 @@
     <div class="alert {% if 'thành công' in m.lower() %}alert-success{% else %}alert-error{% endif %}">{{ m }}</div>
     {% endfor %}{% endif %}{% endwith %}
 
-    <!-- Filter tự động (không cần nút bấm) -->
+    <!-- Filter đồng bộ (giống lop.html) -->
     <div class="card">
         <div class="filter-bar">
             <div class="fg">
                 <label>Niên khóa</label>
-                <select id="fNK_filter" onchange="locBang()">
+                <select id="fNK_filter" onchange="locFilter()">
                     <option value="">-- Tất cả --</option>
                     {% for nk in nienkhoa_list %}
-                    <option value="{{ nk }}" {% if nienkhoa==nk %}selected{% endif %}>{{ nk }}</option>
+                    {% set nk_start = nk.split('-')[0]|int if nk and '-' in nk else 0 %}
+                    <option value="{{ nk }}" {% if nienkhoa==nk %}selected{% endif %}>{{ nk }}{% if nk_start and nk_start < 2025 %} 🔒{% endif %}</option>
                     {% endfor %}
                 </select>
             </div>
             <div class="fg">
                 <label>Học kỳ</label>
-                <select id="fHK_filter" onchange="locBang()">
+                <select id="fHK_filter" onchange="locFilter()">
                     <option value="">-- Tất cả --</option>
                     <option value="1" {% if hocky=='1' %}selected{% endif %}>Học kỳ 1</option>
                     <option value="2" {% if hocky=='2' %}selected{% endif %}>Học kỳ 2</option>
@@ -78,7 +93,7 @@
             </div>
             <div class="fg">
                 <label>Khoa</label>
-                <select id="fKHOA_filter" onchange="locBang()">
+                <select id="fKHOA_filter" onchange="locFilter()">
                     <option value="">-- Tất cả --</option>
                     {% for k in khoa_list %}
                     <option value="{{ k.MAKHOA }}" {% if makhoa_filter==k.MAKHOA %}selected{% endif %}>{{ k.TENKHOA }}</option>
@@ -86,8 +101,11 @@
                 </select>
             </div>
             <div class="fg">
-                <label>Tìm môn / GV</label>
+                <label>Tìm mã MH / GV</label>
                 <input type="text" id="fTXT_filter" oninput="locBang()" placeholder="Nhập để lọc...">
+            </div>
+            <div class="fg" style="align-self:flex-end;">
+                <button class="btn btn-outline" onclick="resetFilter()" style="padding:.45rem 1rem;">↻ Xem tất cả</button>
             </div>
         </div>
     </div>
@@ -103,29 +121,48 @@
             <button class="btn btn-outline" onclick="openHistory()" style="margin-left:auto;">🕓 Lịch sử</button>
         </div>
         {% endif %}
+        <div style="max-height:400px; overflow-y:auto;">
         <table id="tblLTC">
-            <thead><tr><th>MALTC</th><th>Niên khóa</th><th>HK</th><th>Môn học</th><th>Nhóm</th><th>Giảng viên</th><th>Khoa</th><th>SV tối thiểu</th><th>Đã đăng ký</th></tr></thead>
+            <thead><tr><th>MALTC</th><th>Niên khóa</th><th>HK</th><th>Môn học</th><th>Nhóm</th><th>Giảng viên</th><th>Khoa</th><th>SV tối thiểu</th><th>Đã đăng ký</th><th>Trạng thái</th></tr></thead>
             <tbody>
             {% for l in ltc_list %}
-            <tr class="{% if l.IS_FROZEN %}frozen-row{% endif %}" onclick="chonDong(this, '{{ l.MALTC }}', '{{ l.NIENKHOA }}', {{ l.HOCKY }}, '{{ l.MAMH }}', {{ l.NHOM }}, '{{ l.MAGV }}', '{{ l.MAKHOA }}', {{ l.SOSVTOITHIEU }}, {{ 'true' if l.IS_FROZEN else 'false' }})">
+            <tr class="{% if l.IS_FROZEN %}frozen-row{% endif %} {% if l.HUYLOP == 1 %}cancelled-row{% endif %}" 
+                data-nk="{{ l.NIENKHOA }}" data-hk="{{ l.HOCKY }}" data-khoa="{{ l.MAKHOA }}" 
+                data-text="{{ l.NIENKHOA }} {{ l.HOCKY }} {{ l.MAMH }} {{ l.TENMH }} {{ l.MAGV }} {{ l.TENGV }} {{ l.TENKHOA }}"
+                onclick="chonDong(this, '{{ l.MALTC }}', '{{ l.NIENKHOA }}', {{ l.HOCKY }}, '{{ l.MAMH }}', {{ l.NHOM }}, '{{ l.MAGV }}', '{{ l.MAKHOA }}', {{ l.SOSVTOITHIEU }}, {{ 'true' if l.IS_FROZEN else 'false' }}, {{ 1 if l.HUYLOP else 0 }}, {{ l.SOSV_DANGKY }}, {{ 'true' if l.CO_DIEM else 'false' }})">
                 <td>
                     {{ l.MALTC }}
-                    {% if l.IS_FROZEN %}<span class="frozen-badge" title="Dữ liệu lịch sử đã bị đóng băng">🔒</span>{% endif %}
+                    {% if l.IS_FROZEN %}<span class="frozen-badge" title="Dữ liệu lịch sử đã khóa">🔒</span>{% endif %}
+                    {% if l.HUYLOP == 1 %}<span style="color:#ef4444;font-size:0.75rem;margin-left:0.25rem;" title="Lớp tín chỉ đã bị hủy">🚫</span>{% endif %}
                 </td>
                 <td>{{ l.NIENKHOA }}</td>
                 <td>{{ l.HOCKY }}</td>
-                <td>{{ l.TENMH }}</td>
+                <td>{{ l.TENMH }} <span class="badge-muted">{{ l.MAMH }}</span></td>
                 <td>{{ l.NHOM }}</td>
-                <td>{{ l.TENGV }}</td>
+                <td>{{ l.TENGV }} <span class="badge-muted">{{ l.MAGV }}</span></td>
                 <td>{{ l.TENKHOA }}</td>
                 <td>{{ l.SOSVTOITHIEU }}</td>
                 <td>{{ l.SOSV_DANGKY }}</td>
+                <td>
+                    {% if l.IS_FROZEN %}
+                        <span class="badge badge-muted">Đã khóa 🔒</span>
+                    {% elif l.HUYLOP == 1 %}
+                        <span class="badge badge-danger">Đã hủy 🚫</span>
+                    {% elif l.CO_DIEM %}
+                        <span class="badge badge-warning">Đã có điểm 📝</span>
+                    {% elif l.SOSV_DANGKY >= l.SOSVTOITHIEU %}
+                        <span class="badge badge-success">Đủ điều kiện ✅</span>
+                    {% else %}
+                        <span class="badge badge-info">Chờ đăng ký ⏳</span>
+                    {% endif %}
+                </td>
             </tr>
             {% else %}
-            <tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:2rem;">Không có dữ liệu</td></tr>
+            <tr><td colspan="10" style="text-align:center;color:var(--text-muted);padding:2rem;">Không có dữ liệu</td></tr>
             {% endfor %}
             </tbody>
         </table>
+        </div>
     </div>
 
     {% if group == 'PGV' %}
@@ -137,7 +174,8 @@
                 <select id="fNK">
                     <option value="">-- Chọn niên khóa --</option>
                     {% for nk in nienkhoa_list %}
-                    <option value="{{ nk }}">{{ nk }}</option>
+                    {% set nk_start = nk.split('-')[0]|int if nk and '-' in nk else 0 %}
+                    <option value="{{ nk }}">{{ nk }}{% if nk_start and nk_start < 2025 %} 🔒{% endif %}</option>
                     {% endfor %}
                 </select>
             </div>
@@ -164,21 +202,37 @@
     </form>
     <form id="frmXoa" method="POST" action="/loptinchi/xoa">
         <input type="hidden" name="maltc" id="h_xoa_maltc">
+        <input type="hidden" name="action_type" id="h_xoa_action_type">
+    </form>
+    <form id="frmPhucHoiLtc" method="POST" action="/loptinchi/phuchoi">
+        <input type="hidden" name="maltc" id="h_phuchoi_maltc">
     </form>
     {% endif %}
 </div>
 <script src="/static/history.js"></script>
 <script>
-let sel=null, orig={};
+let sel=null, orig={}, selHuylop=0, selSosvDangky=0, selCoDiem=false;
+
+function locFilter() {
+    // [PLANT_NHAPDIEM_RETAIN_2026] NK / HK / Khoa filter cần reload từ server
+    // vì tập rows có thể khác hoàn toàn giữa các filter.
+    const nk = document.getElementById('fNK_filter').value;
+    const hk = document.getElementById('fHK_filter').value;
+    const khoa = document.getElementById('fKHOA_filter').value;
+    const url = new URL(window.location.href);
+    if (nk) url.searchParams.set('nienkhoa', nk); else url.searchParams.delete('nienkhoa');
+    if (hk) url.searchParams.set('hocky', hk); else url.searchParams.delete('hocky');
+    if (khoa) url.searchParams.set('makhoa', khoa); else url.searchParams.delete('makhoa');
+    window.location.href = url.toString();
+}
 
 function locBang() {
-    const nk   = document.getElementById('fNK_filter').value;
+    // Client-side filter cho HK / Khoa / Text search trong tập rows hiện tại
     const hk   = document.getElementById('fHK_filter').value;
     const khoa = document.getElementById('fKHOA_filter').value;
     const txt  = document.getElementById('fTXT_filter').value.toLowerCase();
     document.querySelectorAll('#tblLTC tbody tr[data-nk]').forEach(tr => {
-        const ok = (!nk   || tr.dataset.nk === nk)
-                && (!hk   || tr.dataset.hk === hk)
+        const ok = (!hk   || tr.dataset.hk === hk)
                 && (!khoa || tr.dataset.khoa === khoa)
                 && (!txt  || tr.dataset.text.toLowerCase().includes(txt));
         tr.style.display = ok ? '' : 'none';
@@ -189,24 +243,67 @@ function getNK() {
     return (document.getElementById('fNK')?.value || '').trim();
 }
 
-function chonDong(row, maltc, nk, hk, mamh, nhom, magv, makhoa, minsv, isFrozen) {
+function chonDong(row, maltc, nk, hk, mamh, nhom, magv, makhoa, minsv, isFrozen, huylop, sosv_dangky, coDiem) {
     document.querySelectorAll('#tblLTC tr').forEach(r => r.classList.remove('selected'));
     row.classList.add('selected');
     sel = maltc;
+    
+    selHuylop = huylop;
+    selSosvDangky = sosv_dangky;
+    selCoDiem = coDiem;
 
     const set=(id,v)=>{const el=document.getElementById(id);if(el)el.value=v;};
     set('fNK', nk.trim());
     set('fHK',hk);set('fMAMH',mamh.trim());set('fNHOM',nhom);
     set('fMAGV',magv.trim());set('fMAKHOA_F',makhoa.trim());set('fSOSV',minsv);
     orig={maltc,nk:nk.trim(),hk,mamh:mamh.trim(),nhom,magv:magv.trim(),makhoa:makhoa.trim(),sosv:minsv};
-    
+
     if (isFrozen) {
+        // [PLANT_LTC_BUGS_2026] Frozen: khóa tất cả
         toggleFormLock(true, ['fNK', 'fHK', 'fMAMH', 'fNHOM', 'fMAGV', 'fMAKHOA_F', 'fSOSV']);
         updateActionButtons('error');
     } else {
-        toggleFormLock(false, ['fNK', 'fHK', 'fMAMH', 'fNHOM', 'fMAGV', 'fMAKHOA_F', 'fSOSV']);
+        // [PLANT_LTC_BUGS_2026] Khi edit (không frozen): khóa 4 trường định danh
+        // (NIENKHOA, HOCKY, MAMH, MAKHOA) - chỉ cho sửa NHOM, MAGV, SOSV
+        toggleFormLock(true, ['fNK', 'fHK', 'fMAMH', 'fMAKHOA_F']);
+        toggleFormLock(false, ['fNHOM', 'fMAGV', 'fSOSV']);
         updateActionButtons('editing');
+        
+        // Cập nhật động nút Hủy lớp / Xóa vĩnh viễn / Mở lại lớp
+        const btnXoa = document.getElementById('btnXoa');
+        if (btnXoa) {
+            if (huylop === 1) {
+                btnXoa.textContent = '🔓 Mở lại lớp';
+                btnXoa.className = 'btn btn-primary';
+                btnXoa.disabled = false;
+                btnXoa.style.background = 'linear-gradient(to right, #10b981, #059669)'; // Màu xanh ngọc lá
+                btnXoa.title = 'Mở lại lớp tín chỉ đã bị hủy';
+            } else if (coDiem) {
+                btnXoa.textContent = '🔒 Đã khóa';
+                btnXoa.className = 'btn btn-outline';
+                btnXoa.disabled = true;
+                btnXoa.style.background = '';
+                btnXoa.title = 'Lớp đã có điểm, không thể tác động.';
+            } else if (sosv_dangky === 0) {
+                btnXoa.textContent = '🗑️ Xóa vĩnh viễn';
+                btnXoa.className = 'btn btn-danger';
+                btnXoa.disabled = false;
+                btnXoa.style.background = '#7f1d1d';
+                btnXoa.title = 'Lớp chưa có sinh viên đăng ký, xóa vật lý khỏi database';
+            } else {
+                btnXoa.textContent = '🚫 Hủy lớp';
+                btnXoa.className = 'btn btn-danger';
+                btnXoa.disabled = false;
+                btnXoa.style.background = '#7f1d1d';
+                btnXoa.title = 'Lớp đã có sinh viên đăng ký, chuyển sang trạng thái Hủy';
+            }
+        }
     }
+}
+
+function resetFilter() {
+    // [PLANT_NHAPDIEM_RETAIN_2026] Reset toàn bộ - reload không query để lấy NK mới nhất
+    window.location.href = '/loptinchi';
 }
 function themMoi_ThucHien(){
     const nk=getNK();
@@ -235,14 +332,39 @@ function xoaTrang(){
     const set=(id,v)=>{const el=document.getElementById(id);if(el)el.value=v;};
     set('fNK','');set('fHK','1');set('fMAMH','');set('fNHOM','1');
     set('fMAGV','');set('fMAKHOA_F','');set('fSOSV','10');
+    // [PLANT_LTC_BUGS_2026] Mở khóa tất cả khi tạo mới
     toggleFormLock(false, ['fNK', 'fHK', 'fMAMH', 'fNHOM', 'fMAGV', 'fMAKHOA_F', 'fSOSV']);
     updateActionButtons('adding');
+    
+    const btnXoa = document.getElementById('btnXoa');
+    if (btnXoa) {
+        btnXoa.textContent = '🚫 Hủy lớp';
+        btnXoa.className = 'btn btn-danger';
+        btnXoa.style.background = '';
+        btnXoa.disabled = true;
+        btnXoa.title = '';
+    }
 }
 function xoaDong(){
-    if(!sel){alert('Vui lòng chọn lớp tín chỉ cần hủy.');return;}
-    if(!confirm(`Hủy lớp tín chỉ #${sel}?`))return;
-    document.getElementById('h_xoa_maltc').value=sel;
-    document.getElementById('frmXoa').submit();
+    if(!sel){alert('Vui lòng chọn lớp tín chỉ.');return;}
+    
+    if (selHuylop === 1) {
+        if(!confirm(`Mở lại hoạt động lớp tín chỉ #${sel}?`)) return;
+        document.getElementById('h_phuchoi_maltc').value = sel;
+        document.getElementById('frmPhucHoiLtc').submit();
+    } else if (selCoDiem) {
+        alert('Không thể tác động lớp tín chỉ đã nhập điểm!');
+    } else if (selSosvDangky === 0) {
+        if(!confirm(`Xác nhận XÓA VĨNH VIỄN lớp tín chỉ #${sel}?\n(Thao tác này sẽ xóa vật lý bản ghi khỏi Database do chưa phát sinh tương tác).`)) return;
+        document.getElementById('h_xoa_maltc').value = sel;
+        document.getElementById('h_xoa_action_type').value = 'xoa_vinh_vien';
+        document.getElementById('frmXoa').submit();
+    } else {
+        if(!confirm(`Xác nhận HỦY lớp tín chỉ #${sel}?\n(Hệ thống sẽ giữ lại bản ghi mờ để lưu vết đăng ký của ${selSosvDangky} sinh viên).`)) return;
+        document.getElementById('h_xoa_maltc').value = sel;
+        document.getElementById('h_xoa_action_type').value = 'huy_lop';
+        document.getElementById('frmXoa').submit();
+    }
 }
 function phucHoi(){
     if(sel&&orig.maltc){
@@ -270,7 +392,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!sel) {
                 if (startYear < 2025) {
                     btnThem.disabled = true;
-                    btnThem.title = "Niên khóa này đã bị đóng băng, không thể tạo mới";
+                    btnThem.title = "Niên khóa này đã khóa, không thể tạo mới";
                 } else {
                     btnThem.disabled = false;
                     btnThem.title = "";

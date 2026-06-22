@@ -24,9 +24,6 @@
         .badge-muted{background:#2a2a2a;color:var(--text-muted);padding:.15rem .4rem;border-radius:4px;font-size:.7rem;}
         .back-link{color:#f87171;text-decoration:none;font-size:.85rem;font-weight:600;}
         .empty-msg{text-align:center;color:var(--text-muted);padding:2.5rem;font-size:.9rem;}
-        .quahan-banner{background:#3f1d1d;border:1px solid #c01920;border-radius:var(--radius);padding:1rem 1.25rem;margin-bottom:1.25rem;color:#fca5a5;}
-        .quahan-banner strong{color:#fecaca;}
-        .btn-disabled{background:#3f3f46!important;color:#71717a!important;cursor:not-allowed!important;pointer-events:none!important;opacity:0.5!important;}
     </style>
 </head>
 <body>
@@ -35,13 +32,6 @@
         <h1>📊 Phiếu Điểm</h1>
         <a href="/dashboard" class="back-link">← Về Dashboard</a>
     </div>
-
-    {% if quahan %}
-    <div class="quahan-banner">
-        <strong>⚠️ Tài khoản của bạn đã quá hạn 7 năm kể từ khóa học.</strong><br>
-        Bạn chỉ có thể xem phiếu điểm. Mọi chức năng khác đã bị vô hiệu hóa.
-    </div>
-    {% endif %}
 
     <div class="card">
         <div class="sv-info">
@@ -73,9 +63,9 @@
                 <td style="text-align:center;">{{ r.DIEM_GK if r.DIEM_GK is not none else '—' }}</td>
                 <td style="text-align:center;">{{ r.DIEM_CK if r.DIEM_CK is not none else '—' }}</td>
                 <td style="text-align:center;">
-                    {% if r.DIEM_TK is not none %}
-                    <span class="diem-hm {% if r.DIEM_TK >= 5 %}pass{% else %}fail{% endif %}">
-                        {{ "%.2f"|format(r.DIEM_TK) }}
+                    {% if r.DIEM_HM is not none %}
+                    <span class="diem-hm {% if r.DIEM_HM >= 5 %}pass{% else %}fail{% endif %}">
+                        {{ "%.2f"|format(r.DIEM_HM) }}
                     </span>
                     {% else %}—{% endif %}
                 </td>
