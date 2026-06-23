@@ -73,12 +73,27 @@ AS
 BEGIN
     SET NOCOUNT ON
 
+    -- Tính số năm đã học của SV so với lớp
+    DECLARE @KhoaHocNBD INT
+    DECLARE @QuaHan BIT = 0
+
+    SELECT @KhoaHocNBD = CAST(LEFT(L.KHOAHOC, 4) AS INT)
+    FROM SINHVIEN SV
+    INNER JOIN LOP L ON SV.MALOP = L.MALOP
+    WHERE SV.MASV = @MASV
+
+    -- Nếu năm hiện tại > (năm bắt đầu + 7) thì quá hạn
+    IF @KhoaHocNBD IS NOT NULL
+       AND (YEAR(GETDATE()) - @KhoaHocNBD) > 7
+        SET @QuaHan = 1
+
     SELECT 
         SV.MASV                                         AS USER_NAME,
         RTRIM(SV.HO) + N' ' + RTRIM(SV.TEN)            AS HOTEN,
         K.TENKHOA                                       AS TENGROUP,
         RTRIM(SV.MALOP)                                 AS MALOP,
-        RTRIM(L.TENLOP)                                 AS TENLOP
+        RTRIM(L.TENLOP)                                 AS TENLOP,
+        @QuaHan                                         AS QUAHAN
     FROM SINHVIEN SV
     INNER JOIN LOP  L ON SV.MALOP  = L.MALOP
     INNER JOIN KHOA K ON L.MAKHOA  = K.MAKHOA
@@ -458,6 +473,27 @@ BEGIN
         RETURN
     END
 
+    -- 1c. [MỚI] Kiểm tra SV quá hạn: niên khóa LTC > (KHOAHOC năm bắt đầu + 7)
+    DECLARE @KhoaHocNBD INT
+    DECLARE @NamNK INT
+    DECLARE @QuaHan BIT = 0
+    
+    SELECT @KhoaHocNBD = CAST(LEFT(L.KHOAHOC, 4) AS INT)
+    FROM SINHVIEN SV
+    INNER JOIN LOP L ON SV.MALOP = L.MALOP
+    WHERE SV.MASV = @MASV
+    
+    SET @NamNK = CAST(LEFT(@NK, 4) AS INT)
+    
+    IF @KhoaHocNBD IS NOT NULL AND @NamNK > (@KhoaHocNBD + 7)
+        SET @QuaHan = 1
+
+    IF @QuaHan = 1
+    BEGIN
+        SELECT -20 AS KETQUA, N'Bạn đã quá thời hạn đăng ký (vượt quá KHOAHOC + 7 năm). Chỉ có thể xem điểm.' AS THONGBAO
+        RETURN
+    END
+
     -- 2. Kiểm tra trùng môn học trong cùng học kỳ/niên khóa
     IF EXISTS (
         SELECT 1 FROM DANGKY DK
@@ -504,6 +540,30 @@ CREATE PROCEDURE SP_HUY_DANGKY
 AS
 BEGIN
     SET NOCOUNT ON
+
+    -- [QUA_HAN_SP_2026] Chặn hủy nếu SV đã quá hạn
+    DECLARE @KhoaHocNBD INT
+    DECLARE @NamNK INT
+    DECLARE @QuaHan BIT = 0
+    
+    SELECT @KhoaHocNBD = CAST(LEFT(L.KHOAHOC, 4) AS INT)
+    FROM SINHVIEN SV
+    INNER JOIN LOP L ON SV.MALOP = L.MALOP
+    WHERE SV.MASV = @MASV
+    
+    SELECT @NamNK = CAST(LEFT(LTC.NIENKHOA, 4) AS INT)
+    FROM LOPTINCHI LTC
+    WHERE LTC.MALTC = @MALTC
+
+    IF @KhoaHocNBD IS NOT NULL AND @NamNK > (@KhoaHocNBD + 7)
+        SET @QuaHan = 1
+
+    IF @QuaHan = 1
+    BEGIN
+        SELECT -20 AS KETQUA, N'Bạn đã quá hạn, không thể hủy đăng ký' AS THONGBAO
+        RETURN
+    END
+
     IF NOT EXISTS (SELECT 1 FROM DANGKY WHERE MASV = @MASV AND MALTC = @MALTC AND (HUYDANGKY = 0 OR HUYDANGKY IS NULL))
     BEGIN
         SELECT -1 AS KETQUA, N'Bạn chưa đăng ký lớp này hoặc đã hủy rồi' AS THONGBAO

@@ -1,6 +1,18 @@
 import requests
 import re
 import sys
+import pyodbc
+
+def db_cleanup_ltc(maltc):
+    try:
+        conn = pyodbc.connect('DRIVER={ODBC Driver 17 for SQL Server};SERVER=localhost\\SQLEXPRESS;DATABASE=QLDSV_HTC;Trusted_Connection=yes;')
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM DANGKY WHERE MALTC = ?", (maltc,))
+        cursor.execute("DELETE FROM LOPTINCHI WHERE MALTC = ?", (maltc,))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"[CLEANUP ERROR] {e}")
 
 # Reconfigure console output to support Vietnamese accents in Windows Command Prompt
 try:
@@ -179,9 +191,9 @@ def test_credit_class_usecases():
     r_check = s_pgv.get(BASE_URL + '/loptinchi')
     match = re.search(r"chonDong\(this,\s*'(\d+)',\s*'2026-2027',\s*1,\s*'AV',\s*99", r_check.text)
     if match:
-        existing_maltc = match.group(1)
-        print(f"[CLEANUP] Found pre-existing test credit class #{existing_maltc}. Deleting it...")
-        s_pgv.post(BASE_URL + '/loptinchi/xoa', data={'maltc': existing_maltc, 'action_type': 'xoa_vinh_vien'}, allow_redirects=True)
+        existing_maltc = int(match.group(1))
+        print(f"[CLEANUP] Found pre-existing test credit class #{existing_maltc}. Deleting directly from database...")
+        db_cleanup_ltc(existing_maltc)
     
     # --- STEP 1: PGV opens a credit class ---
     print("\n--- Step 1: PGV attempts to open a new credit class ---")
@@ -280,19 +292,21 @@ def test_credit_class_usecases():
     else:
         print("[SKIP] No historic credit classes found in the database to test.")
 
-    # --- STEP 6: PGV deletes the test credit class (Xóa vĩnh viễn since 0 SV registered) ---
-    print("\n--- Step 6: PGV attempts to delete the class (since 0 SV registered, should do physical delete) ---")
+    # --- STEP 6: PGV cancels the test credit class (Since physical delete is removed) ---
+    print("\n--- Step 6: PGV attempts to cancel the class ---")
     data_del = {
         'maltc': maltc,
-        'action_type': 'xoa_vinh_vien'
+        'action_type': 'huy_lop'
     }
     r = s_pgv.post(BASE_URL + '/loptinchi/xoa', data=data_del, allow_redirects=True)
     
     r_check = s_pgv.get(BASE_URL + '/loptinchi')
-    if f"chonDong(this, '{maltc}'" not in r_check.text.replace(' ', ''):
-        print("[PASS] Credit class successfully deleted physically from DB.")
+    if "cancelled-row" in r_check.text or "Đã hủy" in r_check.text:
+        print("[PASS] Credit class successfully cancelled.")
     else:
-        print("[FAIL] Credit class still exists after deletion.")
+        print("[FAIL] Credit class was not cancelled.")
+        
+    db_cleanup_ltc(maltc)
 
 if __name__ == '__main__':
     test_subject_usecases()

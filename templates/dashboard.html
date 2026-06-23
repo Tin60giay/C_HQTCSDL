@@ -149,7 +149,11 @@
 </head>
 
 <body>
-
+{% if session.get('quahan') %}
+<div style="background:#3f1d1d; border-bottom:1px solid #c01920; color:#fca5a5; padding:0.8rem 1rem; text-align:center; font-size:0.85rem; font-weight:600; margin-bottom:1.5rem; border-radius:8px;">
+    ⚠️ TÀI KHOẢN ĐÃ QUÁ HẠN 7 NĂM KỂ TỪ KHÓA HỌC. Mọi chức năng đăng ký, hủy lớp đã bị khóa. Bạn chỉ được phép xem điểm và lịch sử lớp cũ.
+</div>
+{% endif %}
     <div class="container">
         <div class="header">
             <h1>📚 Phần Mềm Quản Lý Điểm Tín Chỉ</h1>
