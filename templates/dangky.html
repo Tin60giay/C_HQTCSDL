@@ -288,27 +288,22 @@
                 <div class="fg" style="flex:1;min-width:160px;">
                     <label>Niên khóa</label>
                     <select id="fNK" onchange="autoTimLop()" style="width:100%;">
+                        <option value="">-- Chọn niên khóa --</option>
                         {% if nienkhoa_list %}
                         {% for nk in nienkhoa_list %}
                         {% set nk_start = nk.split('-')[0]|int if nk and '-' in nk else 0 %}
-                        <option value="{{ nk }}" {% if nk==reg_nk or (not reg_nk in nienkhoa_list and loop.first)
-                            %}selected{% endif %}>{{ nk }}{% if nk_start and nk_start < 2025 %} 🔒{% endif %}</option>
-                                {% endfor %}
-                                {% else %}
-                        <option value="">-- Chọn niên khóa --</option>
+                        <option value="{{ nk }}" {% if nk==reg_nk or (not reg_nk in nienkhoa_list and loop.first) %}selected{% endif %}>{{ nk }}{% if nk_start and nk_start < 2025 %} 🔒{% endif %}</option>
+                        {% endfor %}
                         {% endif %}
                     </select>
                 </div>
                 <div class="fg" style="min-width:140px;">
                     <label>Học kỳ</label>
                     <select id="fHK" onchange="autoTimLop()">
-                        {% if active_hk == 1 %}
-                        <option value="1" selected>Học kỳ 1</option>
-                        {% elif active_hk == 2 %}
-                        <option value="2" selected>Học kỳ 2</option>
-                        {% elif active_hk == 3 %}
-                        <option value="3" selected>Học kỳ 3</option>
-                        {% endif %}
+                        <option value="" {% if not active_hk %}selected{% endif %}>-- Chọn học kỳ --</option>
+                        <option value="1" {% if active_hk == 1 %}selected{% endif %}>Học kỳ 1</option>
+                        <option value="2" {% if active_hk == 2 %}selected{% endif %}>Học kỳ 2</option>
+                        <option value="3" {% if active_hk == 3 %}selected{% endif %}>Học kỳ 3</option>
                     </select>
                 </div>
             </div>

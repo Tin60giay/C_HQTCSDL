@@ -1627,7 +1627,6 @@ def sinhvien_ghi():
         except ValueError:
             flash("Lỗi: Định dạng ngày sinh không hợp lệ.", "error")
             return redirect(url_for('sinhvien_theo_lop', malop=malop or malop_sv))
-
     conn, _ = get_db()
     if conn:
         try:
@@ -2161,9 +2160,9 @@ def nhapdiem_ghidiem():
 @app.route('/dangky')
 @require_group('SV')
 def dangky():
-    # Lấy niên khóa thuộc phạm vi của SV (KHOAHOC → KHOAHOC+7)
+    # Lấy tất cả niên khóa thực tế trong LOPTINCHI (kể cả quá khứ) để SV có thể chọn xem
     masv = session.get('username', '')
-    nk_list = get_nienkhoa_for_sv(masv)
+    nk_list = get_all_nienkhoa_ltc()
     
     reg_nk, reg_hk = get_upcoming_registration_semester()
     if session.get('quahan'):
