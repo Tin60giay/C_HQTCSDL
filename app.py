@@ -2120,16 +2120,19 @@ def dangky():
     nk_list = get_nienkhoa_for_sv(masv)
     
     reg_nk, reg_hk = get_upcoming_registration_semester()
-    if reg_nk not in nk_list:
-        nk_list.append(reg_nk)
-        nk_list.sort()
+    if session.get('quahan'):
+        # Sinh viên quá hạn: chỉ cho xem các niên khóa cũ trong phạm vi học tập
+        filtered_nk_list = [nk for nk in nk_list if nk != reg_nk]
+    else:
+        # Sinh viên bình thường: chỉ cho xem niên khóa đăng ký mới
+        filtered_nk_list = [reg_nk]
         
     return render_template('dangky.html',
                            hoten=session.get('hoten'),
                            masv=masv,
                            malop=session.get('malop', ''),
                            quahan=session.get('quahan', False),
-                           nienkhoa_list=nk_list,
+                           nienkhoa_list=filtered_nk_list,
                            reg_nk=reg_nk,
                            reg_hk=reg_hk,
                            active_hk=reg_hk,
@@ -2171,6 +2174,17 @@ def dangky_loc():
         hk_int = int(hocky)
     except ValueError:
         hk_int = 0
+
+    # RÀNG BUỘC HỌC KỲ CHO /dangky/loc
+    nk_list = get_nienkhoa_for_sv(masv)
+    reg_nk, reg_hk = get_upcoming_registration_semester()
+    
+    if session.get('quahan'):
+        if nienkhoa not in nk_list or nienkhoa == reg_nk:
+            return jsonify({'ok': False, 'msg': 'Không thể xem niên khóa ngoài phạm vi học tập hoặc niên khóa đăng ký mới.'}), 400
+    else:
+        if nienkhoa != reg_nk or hk_int != reg_hk:
+            return jsonify({'ok': False, 'msg': f'Chỉ được phép xem lớp thuộc học kỳ đăng ký sắp tới (Niên khóa {reg_nk}, Học kỳ {reg_hk}).'}), 400
 
     conn, _ = get_db()
     if not conn:

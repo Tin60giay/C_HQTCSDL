@@ -44,6 +44,11 @@
     </style>
 </head>
 <body>
+{% if quahan %}
+<div style="background:#3f1d1d; border-bottom:1px solid #c01920; color:#fca5a5; padding:0.8rem 1rem; text-align:center; font-size:0.85rem; font-weight:600; margin-bottom:1.5rem; border-radius:8px;">
+    ⚠️ TÀI KHOẢN ĐÃ QUÁ HẠN 7 NĂM KỂ TỪ KHÓA HỌC. Mọi chức năng đăng ký, hủy lớp đã bị khóa. Bạn chỉ được phép xem điểm và lịch sử lớp cũ.
+</div>
+{% endif %}
 <div class="container">
     <div class="header">
         <h1>📚 Đăng Ký Lớp Tín Chỉ</h1>
@@ -54,13 +59,6 @@
     {% if messages %}{% for m in messages %}
     <div class="alert {% if 'thành công' in m.lower() %}alert-success{% else %}alert-error{% endif %}">{{ m }}</div>
     {% endfor %}{% endif %}{% endwith %}
-
-    {% if quahan %}
-    <div class="alert alert-error" style="background:#3f1d1d;border:1px solid #c01920;color:#fca5a5;">
-        <strong>⚠️ Tài khoản của bạn đã quá hạn 7 năm kể từ khóa học.</strong><br>
-        Bạn chỉ có thể xem <a href="/phieu_diem" style="color:#fecaca;text-decoration:underline;">bảng điểm cá nhân</a>. Mọi chức năng khác đã bị vô hiệu hóa.
-    </div>
-    {% endif %}
 
     <!-- Thông tin SV (tự động từ session) -->
     <div class="card">
