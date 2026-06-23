@@ -408,8 +408,8 @@
                 thMsg = 'Tổng số tiết phải từ 1 trở lên.';
             }
             
-            setValidationMsg('fLT', ltMsg, ltErr);
-            setValidationMsg('fTH', thMsg, thErr);
+            setValidationMsg('fLT', ltErr ? ltMsg : null, ltErr);
+            setValidationMsg('fTH', thErr ? thMsg : null, thErr);
 
             if (ltErr || thErr || totalErr) {
                 updateActionButtons('error');
