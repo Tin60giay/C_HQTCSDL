@@ -29,7 +29,7 @@
         select option{background:#1a1a1a;}
         .sv-info{display:flex;gap:1.5rem;flex-wrap:wrap;padding:.65rem .9rem;background:#111;border-radius:8px;border:1px solid var(--border);font-size:.85rem;margin-top:.75rem;}
         .sv-info span b{color:#f87171;}
-        table{width:100%;border-collapse:collapse;font-size:.83rem;}
+        table{width:100%;border-collapse:collapse;font-size:.83rem;table-layout:fixed;}
         th{text-align:left;padding:.5rem .6rem;color:var(--text-muted);border-bottom:1px solid var(--border);font-weight:600;font-size:.7rem;text-transform:uppercase;}
         td{padding:.45rem .6rem;border-bottom:1px solid #2a2a2a;}
         .badge{display:inline-block;padding:.2rem .5rem;border-radius:4px;font-size:.72rem;font-weight:600;}
@@ -119,7 +119,13 @@
         <table>
             <thead>
                 <tr>
-                    <th>MAMH</th><th>Môn học</th><th>Nhóm</th><th>Giảng viên</th><th>Khoa</th><th>Số SV</th><th>Trạng thái</th>
+                    <th style="width: 9%;">MAMH</th>
+                    <th style="width: 20%;">Môn học</th>
+                    <th style="width: 6%;">Nhóm</th>
+                    <th style="width: 16%;">Giảng viên</th>
+                    <th style="width: 16%;">Khoa</th>
+                    <th style="width: 10%;">Số SV</th>
+                    <th style="width: 23%;">Trạng thái</th>
                 </tr>
             </thead>
             <tbody id="tbodySelected"></tbody>
@@ -132,7 +138,13 @@
         <table>
             <thead>
                 <tr>
-                    <th>MAMH</th><th>Môn học</th><th>Nhóm</th><th>Giảng viên</th><th>Khoa</th><th>Số SV</th><th>Trạng thái</th>
+                    <th style="width: 9%;">MAMH</th>
+                    <th style="width: 20%;">Môn học</th>
+                    <th style="width: 6%;">Nhóm</th>
+                    <th style="width: 16%;">Giảng viên</th>
+                    <th style="width: 16%;">Khoa</th>
+                    <th style="width: 10%;">Số SV</th>
+                    <th style="width: 23%;">Trạng thái</th>
                 </tr>
             </thead>
             <tbody id="tbodyLTC"></tbody>
