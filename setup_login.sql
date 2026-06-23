@@ -433,6 +433,13 @@ BEGIN
     SELECT @MAMH = MAMH, @NK = NIENKHOA, @HK = HOCKY 
     FROM LOPTINCHI WHERE MALTC = @MALTC AND HUYLOP = 0
 
+    -- [QUY_TAC] Kiểm tra sinh viên có bị nghỉ học không
+    IF EXISTS (SELECT 1 FROM SINHVIEN WHERE MASV = @MASV AND DANGHIHOC = 1)
+    BEGIN
+        SELECT -3 AS KETQUA, N'Sinh viên đã nghỉ học, không thể đăng ký tín chỉ' AS THONGBAO
+        RETURN
+    END
+
     -- 1. Kiểm tra lớp có tồn tại và chưa bị hủy
     IF @MAMH IS NULL
     BEGIN
