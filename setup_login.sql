@@ -447,6 +447,17 @@ BEGIN
         RETURN
     END
 
+    -- 1b. Kiểm tra xem lớp đã có điểm của bất kỳ sinh viên nào chưa
+    IF EXISTS (
+        SELECT 1 FROM DANGKY 
+        WHERE MALTC = @MALTC 
+          AND (DIEM_CC IS NOT NULL OR DIEM_GK IS NOT NULL OR DIEM_CK IS NOT NULL)
+    )
+    BEGIN
+        SELECT -3 AS KETQUA, N'Không thể đăng ký: Lớp tín chỉ này đã được nhập điểm.' AS THONGBAO
+        RETURN
+    END
+
     -- 2. Kiểm tra trùng môn học trong cùng học kỳ/niên khóa
     IF EXISTS (
         SELECT 1 FROM DANGKY DK
