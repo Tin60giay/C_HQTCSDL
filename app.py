@@ -600,6 +600,20 @@ def login_required(f):
     return wrapped
 
 
+@app.before_request
+def check_quahan():
+    # Chỉ áp dụng kiểm tra khi là Sinh Viên và có cờ quahan = True
+    if session.get('role') == 'SV' and session.get('quahan'):
+        # Cho phép truy cập: trang phiếu điểm, dashboard, đăng xuất, trang chủ/login và các file tĩnh (static)
+        allowed_endpoints = ['phieu_diem', 'dashboard', 'logout', 'login', 'static']
+        if request.endpoint and request.endpoint not in allowed_endpoints:
+            # Nếu là yêu cầu AJAX (API) hoặc yêu cầu Đăng ký/Hủy/Đổi mật khẩu
+            if request.is_json or request.path.startswith('/dangky/') or request.path.startswith('/doimatkhau/'):
+                return jsonify({'ok': False, 'msg': 'Tài khoản của bạn đã quá hạn 7 năm, chỉ có thể xem điểm.'}), 403
+            flash('Tài khoản của bạn đã quá hạn 7 năm kể từ khóa học, chỉ có thể xem điểm cá nhân.')
+            return redirect(url_for('phieu_diem'))
+
+
 # ----------------------------------------------------------------
 # Auth routes
 # ----------------------------------------------------------------
@@ -696,6 +710,7 @@ def login():
                         session['role'] = 'SV'
                         session['khoa'] = khoa
                         session['malop'] = row.MALOP.strip() if hasattr(row, 'MALOP') and row.MALOP else ''
+                        session['quahan'] = bool(getattr(row, 'QUAHAN', 0))
                         session['db_login'] = SV_SHARED_LOGIN
                         session['db_pass'] = SV_SHARED_PASSWORD
                         conn.close()
@@ -2371,6 +2386,7 @@ def phieu_diem():
     sv_info = {'MASV': masv, 'HOTEN': hoten, 'MALOP': malop, 'NGAYSINH': ngaysinh}
     return render_template('phieu_diem.html', phieu_diem=phieu_diem_list,
                            sv=sv_info, masv=masv, hoten=hoten,
+                           quahan=session.get('quahan', False),
                            group=session.get('group'))
 
 # ----------------------------------------------------------------
