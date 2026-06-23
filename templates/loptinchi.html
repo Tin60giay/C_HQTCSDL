@@ -176,7 +176,11 @@
                     {% for nk in nienkhoa_list %}
                     {% set nk_start = nk.split('-')[0]|int if nk and '-' in nk else 0 %}
                     {% set active_start = active_nk.split('-')[0]|int if active_nk and '-' in active_nk else 0 %}
-                    <option value="{{ nk }}" {% if nk_start < active_start %}style="display: none;"{% endif %}>{{ nk }}{% if nk_start and nk_start < 2025 %} 🔒{% endif %}</option>
+                    {% set should_hide = false %}
+                    {% if nk_start < active_start or (nk_start == active_start and active_hk == 3) %}
+                        {% set should_hide = true %}
+                    {% endif %}
+                    <option value="{{ nk }}" {% if should_hide %}style="display: none;"{% endif %}>{{ nk }}{% if nk_start and nk_start < 2025 %} 🔒{% endif %}</option>
                     {% endfor %}
                 </select>
             </div>
