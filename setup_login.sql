@@ -433,6 +433,13 @@ BEGIN
     SELECT @MAMH = MAMH, @NK = NIENKHOA, @HK = HOCKY 
     FROM LOPTINCHI WHERE MALTC = @MALTC AND HUYLOP = 0
 
+    -- [QUY_TAC] Kiểm tra sinh viên có bị nghỉ học không
+    IF EXISTS (SELECT 1 FROM SINHVIEN WHERE MASV = @MASV AND DANGHIHOC = 1)
+    BEGIN
+        SELECT -3 AS KETQUA, N'Sinh viên đã nghỉ học, không thể đăng ký tín chỉ' AS THONGBAO
+        RETURN
+    END
+
     -- 1. Kiểm tra lớp có tồn tại và chưa bị hủy
     IF @MAMH IS NULL
     BEGIN
@@ -606,8 +613,8 @@ BEGIN
     DECLARE @NamKT INT = ISNULL(@NamBD, 0) + 7
     DECLARE @NamNK_LTC INT = CAST(LEFT(@NIENKHOA, 4) AS INT)
 
-    -- Nếu NK được chọn nằm ngoài phạm vi -> trả về rỗng
-    IF @NamBD IS NULL OR @NamNK_LTC < @NamBD OR @NamNK_LTC > @NamKT
+    -- Nếu NK được chọn nằm ngoài phạm vi -> trả về rỗng (bỏ chặn niên khóa quá khứ)
+    IF @NamBD IS NULL
     BEGIN
         SELECT TOP 0 CAST(NULL AS INT) AS MALTC, CAST(NULL AS NCHAR(10)) AS MAMH,
                CAST(NULL AS NVARCHAR(50)) AS TENMH, CAST(NULL AS INT) AS NHOM,

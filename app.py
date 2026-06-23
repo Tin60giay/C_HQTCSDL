@@ -1543,6 +1543,29 @@ def sinhvien_them():
     diachi = request.form.get('diachi', '').strip()
     ngaysinh = request.form.get('ngaysinh', '') or None
     malop_sv = request.form.get('malop_sv', '').strip().upper()
+    
+    # VALIDATION
+    import re
+    from datetime import datetime
+    if not re.match(r'^[A-Z0-9]{1,10}$', masv):
+        flash("Lỗi: Mã sinh viên chỉ được chứa chữ và số, tối đa 10 ký tự", "error")
+        return redirect(url_for('sinhvien_theo_lop', malop=malop or malop_sv))
+    
+    ho = ho.title()
+    ten = ten.title()
+    
+    if ngaysinh:
+        try:
+            ns = datetime.strptime(ngaysinh, '%Y-%m-%d')
+            today = datetime.today()
+            age = today.year - ns.year - ((today.month, today.day) < (ns.month, ns.day))
+            if age < 18:
+                flash("Lỗi: Sinh viên phải đủ 18 tuổi trở lên.", "error")
+                return redirect(url_for('sinhvien_theo_lop', malop=malop or malop_sv))
+        except ValueError:
+            flash("Lỗi: Định dạng ngày sinh không hợp lệ", "error")
+            return redirect(url_for('sinhvien_theo_lop', malop=malop or malop_sv))
+            
     conn, _ = get_db()
     if conn:
         try:
@@ -1583,6 +1606,29 @@ def sinhvien_ghi():
     ngaysinh = request.form.get('ngaysinh', '') or None
     malop_sv = request.form.get('malop_sv', '').strip().upper()
     danghihoc = 1 if request.form.get('danghihoc') == '1' else 0
+    
+    # VALIDATION
+    import re
+    from datetime import datetime
+    if not re.match(r'^[A-Z0-9]{1,10}$', masv):
+        flash("Lỗi: Mã sinh viên chỉ được chứa chữ và số, tối đa 10 ký tự", "error")
+        return redirect(url_for('sinhvien_theo_lop', malop=malop or malop_sv))
+    
+    ho = ho.title()
+    ten = ten.title()
+    
+    if ngaysinh:
+        try:
+            ns = datetime.strptime(ngaysinh, '%Y-%m-%d')
+            today = datetime.today()
+            age = today.year - ns.year - ((today.month, today.day) < (ns.month, ns.day))
+            if age < 18:
+                flash("Lỗi: Sinh viên phải đủ 18 tuổi trở lên.", "error")
+                return redirect(url_for('sinhvien_theo_lop', malop=malop or malop_sv))
+        except ValueError:
+            flash("Lỗi: Định dạng ngày sinh không hợp lệ", "error")
+            return redirect(url_for('sinhvien_theo_lop', malop=malop or malop_sv))
+            
     conn, _ = get_db()
     if conn:
         try:
@@ -2116,9 +2162,9 @@ def nhapdiem_ghidiem():
 @app.route('/dangky')
 @require_group('SV')
 def dangky():
-    # Lấy niên khóa thuộc phạm vi của SV (KHOAHOC → KHOAHOC+7)
+    # Lấy tất cả niên khóa thực tế trong LOPTINCHI (kể cả quá khứ) để SV có thể chọn xem
     masv = session.get('username', '')
-    nk_list = get_nienkhoa_for_sv(masv)
+    nk_list = get_all_nienkhoa_ltc()
     
     reg_nk, reg_hk = get_upcoming_registration_semester()
     if reg_nk not in nk_list:
@@ -2487,7 +2533,13 @@ def do_restore_pit():
         return redirect(url_for('backup_page'))
         
     # Xử lý format từ HTML datetime-local (YYYY-MM-DDThh:mm:ss) sang SQL Server datetime format
-    stopat_time = stopat_time.replace('T', ' ')
+    try:
+        from datetime import datetime
+        parsed_time = datetime.fromisoformat(stopat_time)
+        stopat_time = parsed_time.strftime("%Y-%m-%d %H:%M:%S")
+    except ValueError:
+        flash('Định dạng thời gian không hợp lệ', 'error')
+        return redirect(url_for('backup_page'))
         
     connection_string = (
         f"DRIVER={{ODBC Driver 17 for SQL Server}};"
