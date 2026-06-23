@@ -1781,10 +1781,7 @@ def loptinchi_ghi():
     nienkhoa = request.form.get('nienkhoa', '').strip()
     hocky = request.form.get('hocky', 1)
     
-    # RÀNG BUỘC HỌC KỲ QUÁ KHỨ: Không được phép sửa lớp thuộc học kỳ quá khứ, và không được đổi sang học kỳ quá khứ
-    if is_past_semester(nienkhoa, hocky):
-        flash("Lỗi: Không được sửa hoặc chuyển lớp sang học kỳ quá khứ.", "error")
-        return redirect(url_for('loptinchi'))
+
 
     mamh = request.form.get('mamh', '').strip().upper()
     nhom = request.form.get('nhom', 1)
@@ -1803,9 +1800,7 @@ def loptinchi_ghi():
                 if is_frozen(r.NIENKHOA):
                     flash(f"Lỗi: Lớp tín chỉ #{maltc} thuộc niên khóa đã bị đóng băng, không thể sửa.", "error")
                     return redirect(url_for('loptinchi'))
-                if is_past_semester(r.NIENKHOA.strip(), r.HOCKY):
-                    flash(f"Lỗi: Không thể sửa đổi lớp tín chỉ #{maltc} thuộc học kỳ quá khứ.", "error")
-                    return redirect(url_for('loptinchi'))
+
 
             # Lấy thông tin cũ và số SV đã đăng ký
             cursor.execute("SELECT NIENKHOA,HOCKY,MAMH,NHOM,MAGV,MAKHOA,SOSVTOITHIEU FROM LOPTINCHI WHERE MALTC=?", (maltc,))
