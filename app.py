@@ -1877,9 +1877,6 @@ def loptinchi_xoa():
                 if is_frozen(r.NIENKHOA):
                     flash(f"Lỗi: Không thể thay đổi lớp tín chỉ #{maltc} vì dữ liệu lịch sử đã bị đóng băng.", "error")
                     return redirect(url_for('loptinchi'))
-                if is_past_semester(r.NIENKHOA.strip(), r.HOCKY):
-                    flash(f"Lỗi: Không thể hủy lớp tín chỉ #{maltc} thuộc học kỳ quá khứ.", "error")
-                    return redirect(url_for('loptinchi'))
 
             cursor.execute("SELECT NIENKHOA,HOCKY,MAMH,NHOM,MAGV,MAKHOA,SOSVTOITHIEU FROM LOPTINCHI WHERE MALTC=?", (maltc,))
             old = cursor.fetchone()
@@ -1919,9 +1916,6 @@ def loptinchi_phuchoi():
             if r:
                 if is_frozen(r.NIENKHOA):
                     flash(f"Lỗi: Không thể mở lại lớp tín chỉ #{maltc} vì dữ liệu lịch sử đã bị đóng băng.", "error")
-                    return redirect(url_for('loptinchi'))
-                if is_past_semester(r.NIENKHOA.strip(), r.HOCKY):
-                    flash(f"Lỗi: Không thể mở lại lớp tín chỉ #{maltc} thuộc học kỳ quá khứ.", "error")
                     return redirect(url_for('loptinchi'))
 
             # Check xem khi mở lại có trùng tổ hợp lớp khác đang hoạt động không
