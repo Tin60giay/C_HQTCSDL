@@ -6,7 +6,7 @@ import json
 app = Flask(__name__)
 app.secret_key = 'super_secret_key_qlds'
 
-SERVER_NAME = 'localhost\\SQLEXPRESS'
+SERVER_NAME = 'localhost'
 DATABASE_NAME = 'QLDSV_HTC'
 
 SV_SHARED_LOGIN = 'sv'
@@ -897,9 +897,9 @@ def history_undo():
             msg = f"Đã hoàn tác sửa môn học {d['mamh']}"
         # --- Hoàn tác lớp tín chỉ ---
         elif atype == 'THEM_LTC':
-            # Thêm LTC -> hoàn tác đúng nghĩa = xóa vật lý nếu chưa phát sinh đăng ký.
-            cursor.execute("EXEC SP_HOANTAC_THEM_LOPTINCHI ?", (d['maltc'],))
-            msg = f"Đã xóa lớp tín chỉ vừa tạo #{d['maltc']}"
+            # Thêm LTC -> hoàn tác đúng nghĩa = hủy lớp tín chỉ vừa tạo.
+            cursor.execute("EXEC SP_XOA_LOPTINCHI ?", (d['maltc'],))
+            msg = f"Đã hủy lớp tín chỉ vừa tạo #{d['maltc']}"
         elif atype == 'XOA_LTC':
             # Hủy LTC → hoàn tác = mở lại (set HUYLOP=0)
             cursor.execute("EXEC SP_PHUCHOI_LOPTINCHI ?", (d['maltc'],))
@@ -1865,7 +1865,6 @@ def loptinchi_ghi():
 @require_group('PGV')
 def loptinchi_xoa():
     maltc = request.form.get('maltc', 0)
-    action_type = request.form.get('action_type', 'huy_lop')
     conn, _ = get_db()
     if conn:
         try:
@@ -1879,7 +1878,7 @@ def loptinchi_xoa():
                     flash(f"Lỗi: Không thể thay đổi lớp tín chỉ #{maltc} vì dữ liệu lịch sử đã bị đóng băng.", "error")
                     return redirect(url_for('loptinchi'))
                 if is_past_semester(r.NIENKHOA.strip(), r.HOCKY):
-                    flash(f"Lỗi: Không thể thay đổi (hủy/xóa) lớp tín chỉ #{maltc} thuộc học kỳ quá khứ.", "error")
+                    flash(f"Lỗi: Không thể hủy lớp tín chỉ #{maltc} thuộc học kỳ quá khứ.", "error")
                     return redirect(url_for('loptinchi'))
 
             cursor.execute("SELECT NIENKHOA,HOCKY,MAMH,NHOM,MAGV,MAKHOA,SOSVTOITHIEU FROM LOPTINCHI WHERE MALTC=?", (maltc,))
@@ -1888,28 +1887,15 @@ def loptinchi_xoa():
                 flash("Lớp tín chỉ không tồn tại.")
                 return redirect(url_for('loptinchi'))
 
-            if action_type == 'xoa_vinh_vien':
-                # Gọi SP xóa vật lý lớp tín chỉ (chỉ được khi chưa có SV đăng ký)
-                cursor.execute("EXEC SP_HOANTAC_THEM_LOPTINCHI ?", (maltc,))
-                row = cursor.fetchone()
-                conn.commit()
-                flash(row.THONGBAO if row else 'Xóa vĩnh viễn thành công.')
-                if row and row.KETQUA == 1:
-                    push_history('XOA_VINH_VIEN_LTC',
-                                 f'Xóa vĩnh viễn lớp TC #{maltc} — {old.MAMH.strip()} Nhóm {old.NHOM}',
-                                 {'maltc': maltc, 'nienkhoa': old.NIENKHOA.strip(), 'hocky': old.HOCKY, 
-                                  'mamh': old.MAMH.strip(), 'nhom': old.NHOM, 'magv': old.MAGV.strip(), 
-                                  'makhoa': old.MAKHOA.strip(), 'sosvtoithieu': old.SOSVTOITHIEU})
-            else:
-                # Gọi SP hủy lớp tín chỉ (set HUYLOP = 1)
-                cursor.execute("EXEC SP_XOA_LOPTINCHI ?", (maltc,))
-                row = cursor.fetchone()
-                conn.commit()
-                flash(row.THONGBAO if row else 'Hủy thành công.')
-                if row and row.KETQUA == 1:
-                    push_history('XOA_LTC',
-                                 f'Hủy lớp TC #{maltc} — {old.MAMH.strip()} Nhóm {old.NHOM} NK {old.NIENKHOA.strip()} HK{old.HOCKY}',
-                                 {'maltc': maltc})
+            # Gọi SP hủy lớp tín chỉ (set HUYLOP = 1)
+            cursor.execute("EXEC SP_XOA_LOPTINCHI ?", (maltc,))
+            row = cursor.fetchone()
+            conn.commit()
+            flash(row.THONGBAO if row else 'Hủy thành công.')
+            if row and row.KETQUA == 1:
+                push_history('XOA_LTC',
+                             f'Hủy lớp TC #{maltc} — {old.MAMH.strip()} Nhóm {old.NHOM} NK {old.NIENKHOA.strip()} HK{old.HOCKY}',
+                             {'maltc': maltc})
         except Exception as e:
             flash(f'Lỗi: {e}')
         finally:

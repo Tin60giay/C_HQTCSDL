@@ -104,6 +104,10 @@
                 <label>Tìm mã MH / GV</label>
                 <input type="text" id="fTXT_filter" oninput="locBang()" placeholder="Nhập để lọc...">
             </div>
+            <div class="fg" style="flex-direction:row; align-items:center; gap:0.4rem; align-self:flex-end; padding-bottom:0.55rem;">
+                <input type="checkbox" id="fShowCancelled" onchange="locBang()" style="min-width:auto; width:16px; height:16px; cursor:pointer;">
+                <label for="fShowCancelled" style="color:var(--text-main); font-size:0.85rem; text-transform:none; letter-spacing:normal; cursor:pointer; user-select:none; margin:0;">Hiển thị lớp đã hủy</label>
+            </div>
             <div class="fg" style="align-self:flex-end;">
                 <button class="btn btn-outline" onclick="resetFilter()" style="padding:.45rem 1rem;">↻ Xem tất cả</button>
             </div>
@@ -127,7 +131,7 @@
             <tbody>
             {% for l in ltc_list %}
             <tr class="{% if l.IS_FROZEN %}frozen-row{% endif %} {% if l.HUYLOP == 1 %}cancelled-row{% endif %}" 
-                data-nk="{{ l.NIENKHOA }}" data-hk="{{ l.HOCKY }}" data-khoa="{{ l.MAKHOA }}" 
+                data-nk="{{ l.NIENKHOA }}" data-hk="{{ l.HOCKY }}" data-khoa="{{ l.MAKHOA }}" data-huylop="{{ 1 if l.HUYLOP else 0 }}"
                 data-text="{{ l.NIENKHOA }} {{ l.HOCKY }} {{ l.MAMH }} {{ l.TENMH }} {{ l.MAGV }} {{ l.TENGV }} {{ l.TENKHOA }}"
                 onclick="chonDong(this, '{{ l.MALTC }}', '{{ l.NIENKHOA }}', {{ l.HOCKY }}, '{{ l.MAMH }}', {{ l.NHOM }}, '{{ l.MAGV }}', '{{ l.MAKHOA }}', {{ l.SOSVTOITHIEU }}, {{ 'true' if l.IS_FROZEN else 'false' }}, {{ 1 if l.HUYLOP else 0 }}, {{ l.SOSV_DANGKY }}, {{ 'true' if l.CO_DIEM else 'false' }})">
                 <td>
@@ -327,10 +331,13 @@ function locBang() {
     const hk   = document.getElementById('fHK_filter').value;
     const khoa = document.getElementById('fKHOA_filter').value;
     const txt  = document.getElementById('fTXT_filter').value.toLowerCase();
+    const showCancelled = document.getElementById('fShowCancelled')?.checked;
     document.querySelectorAll('#tblLTC tbody tr[data-nk]').forEach(tr => {
+        const isCancelled = tr.dataset.huylop === '1';
         const ok = (!hk   || tr.dataset.hk === hk)
                 && (!khoa || tr.dataset.khoa === khoa)
-                && (!txt  || tr.dataset.text.toLowerCase().includes(txt));
+                && (!txt  || tr.dataset.text.toLowerCase().includes(txt))
+                && (showCancelled || !isCancelled);
         tr.style.display = ok ? '' : 'none';
     });
 }
@@ -381,18 +388,12 @@ function chonDong(row, maltc, nk, hk, mamh, nhom, magv, makhoa, minsv, isFrozen,
                 btnXoa.disabled = true;
                 btnXoa.style.background = '';
                 btnXoa.title = 'Lớp đã có điểm, không thể tác động.';
-            } else if (sosv_dangky === 0) {
-                btnXoa.textContent = '🗑️ Xóa vĩnh viễn';
-                btnXoa.className = 'btn btn-danger';
-                btnXoa.disabled = false;
-                btnXoa.style.background = '#7f1d1d';
-                btnXoa.title = 'Lớp chưa có sinh viên đăng ký, xóa vật lý khỏi database';
             } else {
                 btnXoa.textContent = '🚫 Hủy lớp';
                 btnXoa.className = 'btn btn-danger';
                 btnXoa.disabled = false;
                 btnXoa.style.background = '#7f1d1d';
-                btnXoa.title = 'Lớp đã có sinh viên đăng ký, chuyển sang trạng thái Hủy';
+                btnXoa.title = 'Hủy hoạt động lớp tín chỉ này';
             }
         }
     }
@@ -464,13 +465,8 @@ function xoaDong(){
         document.getElementById('frmPhucHoiLtc').submit();
     } else if (selCoDiem) {
         alert('Không thể tác động lớp tín chỉ đã nhập điểm!');
-    } else if (selSosvDangky === 0) {
-        if(!confirm(`Xác nhận XÓA VĨNH VIỄN lớp tín chỉ #${sel}?\n(Thao tác này sẽ xóa vật lý bản ghi khỏi Database do chưa phát sinh tương tác).`)) return;
-        document.getElementById('h_xoa_maltc').value = sel;
-        document.getElementById('h_xoa_action_type').value = 'xoa_vinh_vien';
-        document.getElementById('frmXoa').submit();
     } else {
-        if(!confirm(`Xác nhận HỦY lớp tín chỉ #${sel}?\n(Hệ thống sẽ giữ lại bản ghi mờ để lưu vết đăng ký của ${selSosvDangky} sinh viên).`)) return;
+        if(!confirm(`Xác nhận HỦY lớp tín chỉ #${sel}?`)) return;
         document.getElementById('h_xoa_maltc').value = sel;
         document.getElementById('h_xoa_action_type').value = 'huy_lop';
         document.getElementById('frmXoa').submit();
