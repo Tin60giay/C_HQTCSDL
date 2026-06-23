@@ -211,6 +211,10 @@
 </div>
 <script src="/static/history.js"></script>
 <script>
+const ACTIVE_NK = "{{ active_nk }}";
+const ACTIVE_HK = {{ active_hk }};
+const REG_NK = "{{ reg_nk }}";
+const REG_HK = {{ reg_hk }};
 let sel=null, orig={}, selHuylop=0, selSosvDangky=0, selCoDiem=false;
 
 function locFilter() {
@@ -330,10 +334,13 @@ function ghiDulieu(){
 function xoaTrang(){
     document.querySelectorAll('#tblLTC tr').forEach(r=>r.classList.remove('selected')); sel=null; orig={};
     const set=(id,v)=>{const el=document.getElementById(id);if(el)el.value=v;};
-    set('fNK','');set('fHK','1');set('fMAMH','');set('fNHOM','1');
+    set('fNK', REG_NK);
+    set('fHK', REG_HK);
+    set('fMAMH','');set('fNHOM','1');
     set('fMAGV','');set('fMAKHOA_F','');set('fSOSV','10');
-    // [PLANT_LTC_BUGS_2026] Mở khóa tất cả khi tạo mới
-    toggleFormLock(false, ['fNK', 'fHK', 'fMAMH', 'fNHOM', 'fMAGV', 'fMAKHOA_F', 'fSOSV']);
+    // Khóa fNK và fHK khi tạo mới vì PGV chỉ được tạo cho học kỳ đăng ký/tương lai
+    toggleFormLock(true, ['fNK', 'fHK']);
+    toggleFormLock(false, ['fMAMH', 'fNHOM', 'fMAGV', 'fMAKHOA_F', 'fSOSV']);
     updateActionButtons('adding');
     
     const btnXoa = document.getElementById('btnXoa');

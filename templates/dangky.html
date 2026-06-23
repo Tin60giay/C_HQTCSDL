@@ -90,9 +90,13 @@
             <div class="fg" style="min-width:140px;">
                 <label>Học kỳ</label>
                 <select id="fHK" onchange="autoTimLop()">
+                    {% if active_hk == 1 %}
                     <option value="1" selected>Học kỳ 1</option>
-                    <option value="2">Học kỳ 2</option>
-                    <option value="3">Học kỳ 3</option>
+                    {% elif active_hk == 2 %}
+                    <option value="2" selected>Học kỳ 2</option>
+                    {% elif active_hk == 3 %}
+                    <option value="3" selected>Học kỳ 3</option>
+                    {% endif %}
                 </select>
             </div>
         </div>

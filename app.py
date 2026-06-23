@@ -100,6 +100,59 @@ def is_frozen(year_str):
         return False
 
 
+def get_active_semester():
+    """Lấy niên khóa và học kỳ hoạt động dựa trên tháng hiện tại."""
+    import datetime
+    now = datetime.datetime.now()
+    month = now.month
+    year = now.year
+    
+    if 8 <= month <= 12:
+        return f"{year}-{year+1}", 1
+    elif 1 <= month <= 5:
+        return f"{year-1}-{year}", 2
+    else: # Tháng 6, 7
+        return f"{year-1}-{year}", 3
+
+
+def get_upcoming_registration_semester():
+    """Lấy niên khóa và học kỳ đăng ký tiếp theo dựa trên tháng hiện tại."""
+    import datetime
+    now = datetime.datetime.now()
+    month = now.month
+    year = now.year
+    
+    if 8 <= month <= 12:
+        # Kỳ hiện tại là HK1 của YYYY-(YYYY+1). Kỳ đăng ký tiếp theo là HK2 của YYYY-(YYYY+1)
+        return f"{year}-{year+1}", 2
+    elif 1 <= month <= 5:
+        # Kỳ hiện tại là HK2 của (YYYY-1)-YYYY. Kỳ đăng ký tiếp theo là HK3 của (YYYY-1)-YYYY
+        return f"{year-1}-{year}", 3
+    else: # Tháng 6, 7
+        # Kỳ hiện tại là HK3 của (YYYY-1)-YYYY. Kỳ đăng ký tiếp theo là HK1 của YYYY-(YYYY+1)
+        return f"{year}-{year+1}", 1
+
+
+def parse_semester(nienkhoa, hocky):
+    """Chuyển đổi niên khóa (định dạng YYYY-YYYY) và học kỳ thành tuple (start_year, hocky) để so sánh."""
+    if not nienkhoa:
+        return (0, 0)
+    try:
+        start_year = int(nienkhoa.split('-')[0])
+        return (start_year, int(hocky))
+    except Exception:
+        return (0, 0)
+
+
+def is_past_semester(nienkhoa, hocky):
+    """Kiểm tra học kỳ đích có phải là học kỳ quá khứ (trước học kỳ hiện tại) không."""
+    active_nk, active_hk = get_active_semester()
+    target_key = parse_semester(nienkhoa, hocky)
+    active_key = parse_semester(active_nk, active_hk)
+    return target_key < active_key
+
+
+
 def nocache_response(resp):
     """[PLANT_NHAPDIEM_RETAIN_2026] Thêm headers chống cache cho response HTML
     để browser luôn lấy HTML mới nhất từ server.
@@ -1658,12 +1711,16 @@ def loptinchi():
             flash(f'Lỗi: {e}')
         finally:
             conn.close()
+    active_nk, active_hk = get_active_semester()
+    reg_nk, reg_hk = get_upcoming_registration_semester()
     resp = make_response(render_template('loptinchi.html', ltc_list=ltc_list,
                            monhoc_list=monhoc_list, gv_list=gv_list,
                            khoa_list=khoa_list,
                            nienkhoa_list=get_all_nienkhoa_ltc(),
                            nienkhoa=nienkhoa, hocky=hocky, makhoa_filter=makhoa_filter,
-                           hoten=session.get('hoten'), group=session.get('group')))
+                           hoten=session.get('hoten'), group=session.get('group'),
+                           active_nk=active_nk, active_hk=active_hk,
+                           reg_nk=reg_nk, reg_hk=reg_hk))
     return nocache_response(resp)
 
 
@@ -1672,6 +1729,18 @@ def loptinchi():
 def loptinchi_them():
     nienkhoa = request.form.get('nienkhoa', '').strip()
     hocky = request.form.get('hocky', 1)
+    
+    # RÀNG BUỘC HỌC KỲ HOẠT ĐỘNG: Chỉ được mở từ học kỳ đăng ký (kế tiếp) trở đi
+    active_nk, active_hk = get_active_semester()
+    try:
+        hk_int = int(hocky)
+    except ValueError:
+        hk_int = 1
+        
+    if parse_semester(nienkhoa, hk_int) <= parse_semester(active_nk, active_hk):
+        flash(f"Lỗi: Không thể tạo lớp cho học kỳ quá khứ hoặc hiện tại. Học kỳ đăng ký kế tiếp là Niên khóa {get_upcoming_registration_semester()[0]}, Học kỳ {get_upcoming_registration_semester()[1]}.", "error")
+        return redirect(url_for('loptinchi'))
+
     mamh = request.form.get('mamh', '').strip().upper()
     nhom = request.form.get('nhom', 1)
     magv = request.form.get('magv', '').strip().upper()
@@ -1709,6 +1778,12 @@ def loptinchi_ghi():
     maltc = request.form.get('maltc', 0)
     nienkhoa = request.form.get('nienkhoa', '').strip()
     hocky = request.form.get('hocky', 1)
+    
+    # RÀNG BUỘC HỌC KỲ QUÁ KHỨ: Không được phép sửa lớp thuộc học kỳ quá khứ, và không được đổi sang học kỳ quá khứ
+    if is_past_semester(nienkhoa, hocky):
+        flash("Lỗi: Không được sửa hoặc chuyển lớp sang học kỳ quá khứ.", "error")
+        return redirect(url_for('loptinchi'))
+
     mamh = request.form.get('mamh', '').strip().upper()
     nhom = request.form.get('nhom', 1)
     magv = request.form.get('magv', '').strip().upper()
@@ -1720,11 +1795,15 @@ def loptinchi_ghi():
             cursor = conn.cursor()
             
             # KIỂM TRA ĐÓNG BĂNG
-            cursor.execute("SELECT NIENKHOA FROM LOPTINCHI WHERE MALTC = ?", (maltc,))
+            cursor.execute("SELECT NIENKHOA, HOCKY FROM LOPTINCHI WHERE MALTC = ?", (maltc,))
             r = cursor.fetchone()
-            if r and is_frozen(r.NIENKHOA):
-                flash(f"Lỗi: Lớp tín chỉ #{maltc} thuộc niên khóa đã bị đóng băng, không thể sửa.", "error")
-                return redirect(url_for('loptinchi'))
+            if r:
+                if is_frozen(r.NIENKHOA):
+                    flash(f"Lỗi: Lớp tín chỉ #{maltc} thuộc niên khóa đã bị đóng băng, không thể sửa.", "error")
+                    return redirect(url_for('loptinchi'))
+                if is_past_semester(r.NIENKHOA.strip(), r.HOCKY):
+                    flash(f"Lỗi: Không thể sửa đổi lớp tín chỉ #{maltc} thuộc học kỳ quá khứ.", "error")
+                    return redirect(url_for('loptinchi'))
 
             # Lấy thông tin cũ và số SV đã đăng ký
             cursor.execute("SELECT NIENKHOA,HOCKY,MAMH,NHOM,MAGV,MAKHOA,SOSVTOITHIEU FROM LOPTINCHI WHERE MALTC=?", (maltc,))
@@ -1790,12 +1869,16 @@ def loptinchi_xoa():
         try:
             cursor = conn.cursor()
             
-            # KIỂM TRA ĐÓNG BĂNG
-            cursor.execute("SELECT NIENKHOA FROM LOPTINCHI WHERE MALTC = ?", (maltc,))
+            # KIỂM TRA ĐÓNG BĂNG & HỌC KỲ QUÁ KHỨ
+            cursor.execute("SELECT NIENKHOA, HOCKY FROM LOPTINCHI WHERE MALTC = ?", (maltc,))
             r = cursor.fetchone()
-            if r and is_frozen(r.NIENKHOA):
-                flash(f"Lỗi: Không thể thay đổi lớp tín chỉ #{maltc} vì dữ liệu lịch sử đã bị đóng băng.", "error")
-                return redirect(url_for('loptinchi'))
+            if r:
+                if is_frozen(r.NIENKHOA):
+                    flash(f"Lỗi: Không thể thay đổi lớp tín chỉ #{maltc} vì dữ liệu lịch sử đã bị đóng băng.", "error")
+                    return redirect(url_for('loptinchi'))
+                if is_past_semester(r.NIENKHOA.strip(), r.HOCKY):
+                    flash(f"Lỗi: Không thể thay đổi (hủy/xóa) lớp tín chỉ #{maltc} thuộc học kỳ quá khứ.", "error")
+                    return redirect(url_for('loptinchi'))
 
             cursor.execute("SELECT NIENKHOA,HOCKY,MAMH,NHOM,MAGV,MAKHOA,SOSVTOITHIEU FROM LOPTINCHI WHERE MALTC=?", (maltc,))
             old = cursor.fetchone()
@@ -1842,12 +1925,16 @@ def loptinchi_phuchoi():
         try:
             cursor = conn.cursor()
             
-            # KIỂM TRA ĐÓNG BĂNG
-            cursor.execute("SELECT NIENKHOA FROM LOPTINCHI WHERE MALTC = ?", (maltc,))
+            # KIỂM TRA ĐÓNG BĂNG & HỌC KỲ QUÁ KHỨ
+            cursor.execute("SELECT NIENKHOA, HOCKY FROM LOPTINCHI WHERE MALTC = ?", (maltc,))
             r = cursor.fetchone()
-            if r and is_frozen(r.NIENKHOA):
-                flash(f"Lỗi: Không thể mở lại lớp tín chỉ #{maltc} vì dữ liệu lịch sử đã bị đóng băng.", "error")
-                return redirect(url_for('loptinchi'))
+            if r:
+                if is_frozen(r.NIENKHOA):
+                    flash(f"Lỗi: Không thể mở lại lớp tín chỉ #{maltc} vì dữ liệu lịch sử đã bị đóng băng.", "error")
+                    return redirect(url_for('loptinchi'))
+                if is_past_semester(r.NIENKHOA.strip(), r.HOCKY):
+                    flash(f"Lỗi: Không thể mở lại lớp tín chỉ #{maltc} thuộc học kỳ quá khứ.", "error")
+                    return redirect(url_for('loptinchi'))
 
             # Check xem khi mở lại có trùng tổ hợp lớp khác đang hoạt động không
             cursor.execute("SELECT NIENKHOA,HOCKY,MAMH,NHOM FROM LOPTINCHI WHERE MALTC=?", (maltc,))
@@ -2052,15 +2139,24 @@ def nhapdiem_ghidiem():
 @app.route('/dangky')
 @require_group('SV')
 def dangky():
-    # [PLANT_LTC_BUGS_2026] Lấy niên khóa thuộc phạm vi của SV (KHOAHOC → KHOAHOC+7)
+    # Lấy niên khóa thuộc phạm vi của SV (KHOAHOC → KHOAHOC+7)
     masv = session.get('username', '')
     nk_list = get_nienkhoa_for_sv(masv)
+    
+    # Chỉ cho phép đăng ký ở học kỳ đăng ký sắp tới
+    reg_nk, reg_hk = get_upcoming_registration_semester()
+    if reg_nk in nk_list:
+        filtered_nk_list = [reg_nk]
+    else:
+        filtered_nk_list = []
+        
     return render_template('dangky.html',
                            hoten=session.get('hoten'),
                            masv=masv,
                            malop=session.get('malop', ''),
                            quahan=session.get('quahan', False),
-                           nienkhoa_list=nk_list,
+                           nienkhoa_list=filtered_nk_list,
+                           active_hk=reg_hk,
                            group=session.get('group'))
 
 
@@ -2094,13 +2190,24 @@ def dangky_loc():
     masv = session.get('username', '')
     nienkhoa = (data.get('nienkhoa', '') or '').strip()
     hocky = data.get('hocky', '')
+    
+    # RÀNG BUỘC HỌC KỲ ĐĂNG KÝ: Chỉ cho lọc đúng học kỳ đăng ký
+    reg_nk, reg_hk = get_upcoming_registration_semester()
+    try:
+        hk_int = int(hocky)
+    except ValueError:
+        hk_int = 0
+        
+    if nienkhoa != reg_nk or hk_int != reg_hk:
+        return jsonify({'ok': False, 'msg': f'Chỉ được phép xem lớp thuộc học kỳ đăng ký sắp tới (Niên khóa {reg_nk}, Học kỳ {reg_hk}).'}), 400
+
     conn, _ = get_db()
     if not conn:
         return jsonify({'ok': False, 'msg': 'Không thể kết nối DB'}), 500
     try:
         cursor = conn.cursor()
         cursor.execute("EXEC SP_GET_LOPTINCHI_DANGKY ?, ?, ?",
-                       (masv, nienkhoa, int(hocky)))
+                       (masv, nienkhoa, hk_int))
         rows = cursor.fetchall()
         ltc_list = []
         for r in rows:
@@ -2145,11 +2252,21 @@ def dangky_thuchien():
     try:
         cursor = conn.cursor()
         
-        # KIỂM TRA ĐÓNG BĂNG: Không cho phép đăng ký vào niên khóa cũ (< 2025)
-        cursor.execute("SELECT NIENKHOA FROM LOPTINCHI WHERE MALTC = ?", (maltc,))
+        # KIỂM TRA ĐÓNG BĂNG & HỌC KỲ ĐĂNG KÝ
+        cursor.execute("SELECT NIENKHOA, HOCKY FROM LOPTINCHI WHERE MALTC = ?", (maltc,))
         res = cursor.fetchone()
-        if res and is_frozen(res.NIENKHOA.strip()):
-            return jsonify({'ok': False, 'msg': f'Không thể đăng ký lớp thuộc niên khóa lịch sử ({res.NIENKHOA.strip()})'})
+        if not res:
+            return jsonify({'ok': False, 'msg': 'Lớp tín chỉ không tồn tại.'})
+            
+        ltc_nk = res.NIENKHOA.strip()
+        ltc_hk = int(res.HOCKY)
+        
+        reg_nk, reg_hk = get_upcoming_registration_semester()
+        if ltc_nk != reg_nk or ltc_hk != reg_hk:
+            return jsonify({'ok': False, 'msg': f'Chỉ được phép đăng ký lớp học thuộc học kỳ đăng ký sắp tới (Niên khóa {reg_nk}, Học kỳ {reg_hk}).'})
+
+        if is_frozen(ltc_nk):
+            return jsonify({'ok': False, 'msg': f'Không thể đăng ký lớp thuộc niên khóa lịch sử ({ltc_nk})'})
 
         cursor.execute("EXEC SP_DANGKY_LTC ?, ?", (masv, maltc))
         row = cursor.fetchone()
@@ -2174,11 +2291,21 @@ def dangky_huy():
     try:
         cursor = conn.cursor()
         
-        # KIỂM TRA ĐÓNG BĂNG: Không cho phép hủy lớp thuộc niên khóa cũ (< 2025)
-        cursor.execute("SELECT NIENKHOA FROM LOPTINCHI WHERE MALTC = ?", (maltc,))
+        # KIỂM TRA ĐÓNG BĂNG & HỌC KỲ ĐĂNG KÝ
+        cursor.execute("SELECT NIENKHOA, HOCKY FROM LOPTINCHI WHERE MALTC = ?", (maltc,))
         res = cursor.fetchone()
-        if res and is_frozen(res.NIENKHOA.strip()):
-            return jsonify({'ok': False, 'msg': f'Không thể hủy lớp thuộc niên khóa lịch sử ({res.NIENKHOA.strip()})'})
+        if not res:
+            return jsonify({'ok': False, 'msg': 'Lớp tín chỉ không tồn tại.'})
+            
+        ltc_nk = res.NIENKHOA.strip()
+        ltc_hk = int(res.HOCKY)
+        
+        reg_nk, reg_hk = get_upcoming_registration_semester()
+        if ltc_nk != reg_nk or ltc_hk != reg_hk:
+            return jsonify({'ok': False, 'msg': f'Chỉ được phép hủy lớp học thuộc học kỳ đăng ký sắp tới (Niên khóa {reg_nk}, Học kỳ {reg_hk}).'})
+
+        if is_frozen(ltc_nk):
+            return jsonify({'ok': False, 'msg': f'Không thể hủy lớp thuộc niên khóa lịch sử ({ltc_nk})'})
 
         cursor.execute("EXEC SP_HUY_DANGKY ?, ?", (masv, maltc))
         row = cursor.fetchone()
