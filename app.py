@@ -1713,10 +1713,12 @@ def loptinchi():
             conn.close()
     active_nk, active_hk = get_active_semester()
     reg_nk, reg_hk = get_upcoming_registration_semester()
+    combined_nk = list(dict.fromkeys(get_all_nienkhoa_ltc() + get_nienkhoa_list()))
+    combined_nk.sort()
     resp = make_response(render_template('loptinchi.html', ltc_list=ltc_list,
                            monhoc_list=monhoc_list, gv_list=gv_list,
                            khoa_list=khoa_list,
-                           nienkhoa_list=get_all_nienkhoa_ltc(),
+                           nienkhoa_list=combined_nk,
                            nienkhoa=nienkhoa, hocky=hocky, makhoa_filter=makhoa_filter,
                            hoten=session.get('hoten'), group=session.get('group'),
                            active_nk=active_nk, active_hk=active_hk,
