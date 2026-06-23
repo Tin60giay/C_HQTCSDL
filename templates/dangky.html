@@ -261,6 +261,8 @@ function renderAll() {
                 if (ltc.CO_DIEM || ltc.DA_NHAP_DIEM == 1) btnHtml += '<span style="font-size:.7rem;color:#fbbf24;margin-left:.4rem;">📝</span>';
             } else if (isRegisteredOtherClassSameSubject) {
                 btnHtml = `<button class="btn btn-disabled btn-sm" title="Bạn đã đăng ký một lớp khác cho môn học này" ${extraAttr}>Đăng ký</button>`;
+            } else if (ltc.DA_NHAP_DIEM == 1) {
+                btnHtml = `<button class="btn btn-disabled btn-sm" disabled title="Không thể đăng ký: Lớp đã bắt đầu nhập điểm" ${extraAttr}>Đăng ký</button>`;
             } else {
                 btnHtml = `<button class="btn btn-primary btn-sm" onclick="xulyDangKy(${ltc.MALTC}, '${ltc.TENMH}')" ${extraAttr}>Đăng ký</button>`;
             }

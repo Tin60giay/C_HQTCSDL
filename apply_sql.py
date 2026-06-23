@@ -9,7 +9,7 @@ except AttributeError:
     pass
 
 def apply_sql_file():
-    conn_str = 'DRIVER={ODBC Driver 17 for SQL Server};SERVER=localhost;DATABASE=QLDSV_HTC;Trusted_Connection=yes;'
+    conn_str = 'DRIVER={ODBC Driver 17 for SQL Server};SERVER=localhost\\SQLEXPRESS;DATABASE=QLDSV_HTC;Trusted_Connection=yes;'
     try:
         conn = pyodbc.connect(conn_str)
         print("Connected successfully using Windows Authentication (sysadmin).")

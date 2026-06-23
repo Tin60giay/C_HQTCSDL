@@ -6,7 +6,7 @@ import json
 app = Flask(__name__)
 app.secret_key = 'super_secret_key_qlds'
 
-SERVER_NAME = 'localhost'
+SERVER_NAME = 'localhost\\SQLEXPRESS'
 DATABASE_NAME = 'QLDSV_HTC'
 
 SV_SHARED_LOGIN = 'sv'
@@ -2269,6 +2269,14 @@ def dangky_thuchien():
 
         if is_frozen(ltc_nk):
             return jsonify({'ok': False, 'msg': f'Không thể đăng ký lớp thuộc niên khóa lịch sử ({ltc_nk})'})
+
+        # KIỂM TRA LỚP ĐÃ NHẬP ĐIỂM CHƯA (RÀNG BUỘC BACKEND)
+        cursor.execute("""
+            SELECT COUNT(*) FROM DANGKY 
+            WHERE MALTC = ? AND (DIEM_CC IS NOT NULL OR DIEM_GK IS NOT NULL OR DIEM_CK IS NOT NULL)
+        """, (maltc,))
+        if cursor.fetchone()[0] > 0:
+            return jsonify({'ok': False, 'msg': 'Không thể đăng ký: Lớp tín chỉ này đã được nhập điểm.'})
 
         cursor.execute("EXEC SP_DANGKY_LTC ?, ?", (masv, maltc))
         row = cursor.fetchone()
