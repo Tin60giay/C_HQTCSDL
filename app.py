@@ -2120,19 +2120,19 @@ def dangky():
     masv = session.get('username', '')
     nk_list = get_nienkhoa_for_sv(masv)
     
-    # Chỉ cho phép đăng ký ở học kỳ đăng ký sắp tới
     reg_nk, reg_hk = get_upcoming_registration_semester()
-    if reg_nk in nk_list:
-        filtered_nk_list = [reg_nk]
-    else:
-        filtered_nk_list = []
+    if reg_nk not in nk_list:
+        nk_list.append(reg_nk)
+        nk_list.sort()
         
     return render_template('dangky.html',
                            hoten=session.get('hoten'),
                            masv=masv,
                            malop=session.get('malop', ''),
                            quahan=session.get('quahan', False),
-                           nienkhoa_list=filtered_nk_list,
+                           nienkhoa_list=nk_list,
+                           reg_nk=reg_nk,
+                           reg_hk=reg_hk,
                            active_hk=reg_hk,
                            group=session.get('group'))
 
@@ -2168,15 +2168,10 @@ def dangky_loc():
     nienkhoa = (data.get('nienkhoa', '') or '').strip()
     hocky = data.get('hocky', '')
     
-    # RÀNG BUỘC HỌC KỲ ĐĂNG KÝ: Chỉ cho lọc đúng học kỳ đăng ký
-    reg_nk, reg_hk = get_upcoming_registration_semester()
     try:
         hk_int = int(hocky)
     except ValueError:
         hk_int = 0
-        
-    if nienkhoa != reg_nk or hk_int != reg_hk:
-        return jsonify({'ok': False, 'msg': f'Chỉ được phép xem lớp thuộc học kỳ đăng ký sắp tới (Niên khóa {reg_nk}, Học kỳ {reg_hk}).'}), 400
 
     conn, _ = get_db()
     if not conn:
