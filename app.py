@@ -6,7 +6,7 @@ import json
 app = Flask(__name__)
 app.secret_key = 'super_secret_key_qlds'
 
-SERVER_NAME = 'localhost'
+SERVER_NAME = 'localhost\\SQLEXPRESS'
 DATABASE_NAME = 'QLDSV_HTC'
 
 SV_SHARED_LOGIN = 'sv'
@@ -598,8 +598,6 @@ def login_required(f):
             return redirect(url_for('login'))
         return f(*args, **kwargs)
     return wrapped
-
-
 # ----------------------------------------------------------------
 # Auth routes
 # ----------------------------------------------------------------
@@ -696,6 +694,7 @@ def login():
                         session['role'] = 'SV'
                         session['khoa'] = khoa
                         session['malop'] = row.MALOP.strip() if hasattr(row, 'MALOP') and row.MALOP else ''
+                        session['quahan'] = bool(getattr(row, 'QUAHAN', 0))
                         session['db_login'] = SV_SHARED_LOGIN
                         session['db_pass'] = SV_SHARED_PASSWORD
                         conn.close()
@@ -2270,6 +2269,10 @@ def dangky_thuchien():
     try:
         cursor = conn.cursor()
         
+        # [QUA_HAN_SP_2026] Nếu SV đã quá hạn (KHOAHOC + 7 năm) → từ chối
+        if session.get('quahan'):
+            return jsonify({'ok': False, 'msg': 'Tài khoản của bạn đã quá hạn, chỉ có thể xem phiếu điểm.'})
+        
         # KIỂM TRA ĐÓNG BĂNG & HỌC KỲ ĐĂNG KÝ
         cursor.execute("SELECT NIENKHOA, HOCKY FROM LOPTINCHI WHERE MALTC = ?", (maltc,))
         res = cursor.fetchone()
@@ -2316,6 +2319,10 @@ def dangky_huy():
         return jsonify({'ok': False, 'msg': 'Không thể kết nối DB'}), 500
     try:
         cursor = conn.cursor()
+        
+        # [QUA_HAN_SP_2026] Nếu SV đã quá hạn → từ chối
+        if session.get('quahan'):
+            return jsonify({'ok': False, 'msg': 'Tài khoản của bạn đã quá hạn, không thể hủy đăng ký.'})
         
         # KIỂM TRA ĐÓNG BĂNG & HỌC KỲ ĐĂNG KÝ
         cursor.execute("SELECT NIENKHOA, HOCKY FROM LOPTINCHI WHERE MALTC = ?", (maltc,))
@@ -2387,6 +2394,7 @@ def phieu_diem():
     sv_info = {'MASV': masv, 'HOTEN': hoten, 'MALOP': malop, 'NGAYSINH': ngaysinh}
     return render_template('phieu_diem.html', phieu_diem=phieu_diem_list,
                            sv=sv_info, masv=masv, hoten=hoten,
+                           quahan=session.get('quahan', False),
                            group=session.get('group'))
 
 # ----------------------------------------------------------------
