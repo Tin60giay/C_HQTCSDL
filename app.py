@@ -6,7 +6,7 @@ import json
 app = Flask(__name__)
 app.secret_key = 'super_secret_key_qlds'
 
-SERVER_NAME = 'localhost\\SQLEXPRESS'
+SERVER_NAME = 'localhost'
 DATABASE_NAME = 'QLDSV_HTC'
 
 SV_SHARED_LOGIN = 'sv'
@@ -912,9 +912,9 @@ def history_undo():
             msg = f"Đã hoàn tác sửa môn học {d['mamh']}"
         # --- Hoàn tác lớp tín chỉ ---
         elif atype == 'THEM_LTC':
-            # Thêm LTC -> hoàn tác đúng nghĩa = xóa vật lý nếu chưa phát sinh đăng ký.
-            cursor.execute("EXEC SP_HOANTAC_THEM_LOPTINCHI ?", (d['maltc'],))
-            msg = f"Đã xóa lớp tín chỉ vừa tạo #{d['maltc']}"
+            # Thêm LTC -> hoàn tác đúng nghĩa = hủy lớp tín chỉ vừa tạo.
+            cursor.execute("EXEC SP_XOA_LOPTINCHI ?", (d['maltc'],))
+            msg = f"Đã hủy lớp tín chỉ vừa tạo #{d['maltc']}"
         elif atype == 'XOA_LTC':
             # Hủy LTC → hoàn tác = mở lại (set HUYLOP=0)
             cursor.execute("EXEC SP_PHUCHOI_LOPTINCHI ?", (d['maltc'],))
@@ -1796,10 +1796,7 @@ def loptinchi_ghi():
     nienkhoa = request.form.get('nienkhoa', '').strip()
     hocky = request.form.get('hocky', 1)
     
-    # RÀNG BUỘC HỌC KỲ QUÁ KHỨ: Không được phép sửa lớp thuộc học kỳ quá khứ, và không được đổi sang học kỳ quá khứ
-    if is_past_semester(nienkhoa, hocky):
-        flash("Lỗi: Không được sửa hoặc chuyển lớp sang học kỳ quá khứ.", "error")
-        return redirect(url_for('loptinchi'))
+
 
     mamh = request.form.get('mamh', '').strip().upper()
     nhom = request.form.get('nhom', 1)
@@ -1818,9 +1815,7 @@ def loptinchi_ghi():
                 if is_frozen(r.NIENKHOA):
                     flash(f"Lỗi: Lớp tín chỉ #{maltc} thuộc niên khóa đã bị đóng băng, không thể sửa.", "error")
                     return redirect(url_for('loptinchi'))
-                if is_past_semester(r.NIENKHOA.strip(), r.HOCKY):
-                    flash(f"Lỗi: Không thể sửa đổi lớp tín chỉ #{maltc} thuộc học kỳ quá khứ.", "error")
-                    return redirect(url_for('loptinchi'))
+
 
             # Lấy thông tin cũ và số SV đã đăng ký
             cursor.execute("SELECT NIENKHOA,HOCKY,MAMH,NHOM,MAGV,MAKHOA,SOSVTOITHIEU FROM LOPTINCHI WHERE MALTC=?", (maltc,))
@@ -1880,7 +1875,6 @@ def loptinchi_ghi():
 @require_group('PGV')
 def loptinchi_xoa():
     maltc = request.form.get('maltc', 0)
-    action_type = request.form.get('action_type', 'huy_lop')
     conn, _ = get_db()
     if conn:
         try:
@@ -1893,9 +1887,6 @@ def loptinchi_xoa():
                 if is_frozen(r.NIENKHOA):
                     flash(f"Lỗi: Không thể thay đổi lớp tín chỉ #{maltc} vì dữ liệu lịch sử đã bị đóng băng.", "error")
                     return redirect(url_for('loptinchi'))
-                if is_past_semester(r.NIENKHOA.strip(), r.HOCKY):
-                    flash(f"Lỗi: Không thể thay đổi (hủy/xóa) lớp tín chỉ #{maltc} thuộc học kỳ quá khứ.", "error")
-                    return redirect(url_for('loptinchi'))
 
             cursor.execute("SELECT NIENKHOA,HOCKY,MAMH,NHOM,MAGV,MAKHOA,SOSVTOITHIEU FROM LOPTINCHI WHERE MALTC=?", (maltc,))
             old = cursor.fetchone()
@@ -1903,28 +1894,15 @@ def loptinchi_xoa():
                 flash("Lớp tín chỉ không tồn tại.")
                 return redirect(url_for('loptinchi'))
 
-            if action_type == 'xoa_vinh_vien':
-                # Gọi SP xóa vật lý lớp tín chỉ (chỉ được khi chưa có SV đăng ký)
-                cursor.execute("EXEC SP_HOANTAC_THEM_LOPTINCHI ?", (maltc,))
-                row = cursor.fetchone()
-                conn.commit()
-                flash(row.THONGBAO if row else 'Xóa vĩnh viễn thành công.')
-                if row and row.KETQUA == 1:
-                    push_history('XOA_VINH_VIEN_LTC',
-                                 f'Xóa vĩnh viễn lớp TC #{maltc} — {old.MAMH.strip()} Nhóm {old.NHOM}',
-                                 {'maltc': maltc, 'nienkhoa': old.NIENKHOA.strip(), 'hocky': old.HOCKY, 
-                                  'mamh': old.MAMH.strip(), 'nhom': old.NHOM, 'magv': old.MAGV.strip(), 
-                                  'makhoa': old.MAKHOA.strip(), 'sosvtoithieu': old.SOSVTOITHIEU})
-            else:
-                # Gọi SP hủy lớp tín chỉ (set HUYLOP = 1)
-                cursor.execute("EXEC SP_XOA_LOPTINCHI ?", (maltc,))
-                row = cursor.fetchone()
-                conn.commit()
-                flash(row.THONGBAO if row else 'Hủy thành công.')
-                if row and row.KETQUA == 1:
-                    push_history('XOA_LTC',
-                                 f'Hủy lớp TC #{maltc} — {old.MAMH.strip()} Nhóm {old.NHOM} NK {old.NIENKHOA.strip()} HK{old.HOCKY}',
-                                 {'maltc': maltc})
+            # Gọi SP hủy lớp tín chỉ (set HUYLOP = 1)
+            cursor.execute("EXEC SP_XOA_LOPTINCHI ?", (maltc,))
+            row = cursor.fetchone()
+            conn.commit()
+            flash(row.THONGBAO if row else 'Hủy thành công.')
+            if row and row.KETQUA == 1:
+                push_history('XOA_LTC',
+                             f'Hủy lớp TC #{maltc} — {old.MAMH.strip()} Nhóm {old.NHOM} NK {old.NIENKHOA.strip()} HK{old.HOCKY}',
+                             {'maltc': maltc})
         except Exception as e:
             flash(f'Lỗi: {e}')
         finally:
@@ -1948,9 +1926,6 @@ def loptinchi_phuchoi():
             if r:
                 if is_frozen(r.NIENKHOA):
                     flash(f"Lỗi: Không thể mở lại lớp tín chỉ #{maltc} vì dữ liệu lịch sử đã bị đóng băng.", "error")
-                    return redirect(url_for('loptinchi'))
-                if is_past_semester(r.NIENKHOA.strip(), r.HOCKY):
-                    flash(f"Lỗi: Không thể mở lại lớp tín chỉ #{maltc} thuộc học kỳ quá khứ.", "error")
                     return redirect(url_for('loptinchi'))
 
             # Check xem khi mở lại có trùng tổ hợp lớp khác đang hoạt động không
@@ -2160,19 +2135,19 @@ def dangky():
     masv = session.get('username', '')
     nk_list = get_nienkhoa_for_sv(masv)
     
-    # Chỉ cho phép đăng ký ở học kỳ đăng ký sắp tới
     reg_nk, reg_hk = get_upcoming_registration_semester()
-    if reg_nk in nk_list:
-        filtered_nk_list = [reg_nk]
-    else:
-        filtered_nk_list = []
+    if reg_nk not in nk_list:
+        nk_list.append(reg_nk)
+        nk_list.sort()
         
     return render_template('dangky.html',
                            hoten=session.get('hoten'),
                            masv=masv,
                            malop=session.get('malop', ''),
                            quahan=session.get('quahan', False),
-                           nienkhoa_list=filtered_nk_list,
+                           nienkhoa_list=nk_list,
+                           reg_nk=reg_nk,
+                           reg_hk=reg_hk,
                            active_hk=reg_hk,
                            group=session.get('group'))
 
@@ -2208,15 +2183,10 @@ def dangky_loc():
     nienkhoa = (data.get('nienkhoa', '') or '').strip()
     hocky = data.get('hocky', '')
     
-    # RÀNG BUỘC HỌC KỲ ĐĂNG KÝ: Chỉ cho lọc đúng học kỳ đăng ký
-    reg_nk, reg_hk = get_upcoming_registration_semester()
     try:
         hk_int = int(hocky)
     except ValueError:
         hk_int = 0
-        
-    if nienkhoa != reg_nk or hk_int != reg_hk:
-        return jsonify({'ok': False, 'msg': f'Chỉ được phép xem lớp thuộc học kỳ đăng ký sắp tới (Niên khóa {reg_nk}, Học kỳ {reg_hk}).'}), 400
 
     conn, _ = get_db()
     if not conn:

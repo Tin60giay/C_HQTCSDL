@@ -80,7 +80,7 @@
                     {% if nienkhoa_list %}
                     {% for nk in nienkhoa_list %}
                     {% set nk_start = nk.split('-')[0]|int if nk and '-' in nk else 0 %}
-                    <option value="{{ nk }}" {% if loop.first %}selected{% endif %}>{{ nk }}{% if nk_start and nk_start < 2025 %} 🔒{% endif %}</option>
+                    <option value="{{ nk }}" {% if nk == reg_nk or (not reg_nk in nienkhoa_list and loop.first) %}selected{% endif %}>{{ nk }}{% if nk_start and nk_start < 2025 %} 🔒{% endif %}</option>
                     {% endfor %}
                     {% else %}
                     <option value="">-- Chọn niên khóa --</option>
@@ -146,6 +146,8 @@
 <script>
 const MASV = "{{ masv }}";
 const QUAHAN = {{ 'true' if quahan else 'false' }};
+const REG_NK = "{{ reg_nk }}";
+const REG_HK = {{ reg_hk }};
 let _autoTimer = null;
 let currentList = [];
 
@@ -206,12 +208,14 @@ function renderAll() {
         selectedDiv.style.display = 'block';
         registeredLTCs.forEach(ltc => {
             const extraAttr = ltc.IS_FROZEN ? 'disabled style="filter:grayscale(1); opacity:0.4; cursor:not-allowed;" title="Lớp thuộc niên khóa cũ"' : '';
-            // [QUA_HAN_SP_2026] Nếu quá hạn hoặc đã bắt đầu nhập điểm → làm mờ nút hủy
+            const isNotRegSemester = ltc.NIENKHOA !== REG_NK || parseInt(ltc.HOCKY) !== REG_HK;
             let cancelBtn = '';
             if (QUAHAN) {
                 cancelBtn = `<button class="btn btn-disabled btn-sm" disabled title="Bạn đã quá hạn 7 năm kể từ khóa học, không thể hủy đăng ký">Hủy đăng ký</button>`;
             } else if (ltc.DA_NHAP_DIEM == 1 || ltc.CO_DIEM) {
                 cancelBtn = `<button class="btn btn-disabled btn-sm" disabled title="Không thể hủy vì đã được nhập điểm">Hủy đăng ký</button>`;
+            } else if (isNotRegSemester) {
+                cancelBtn = `<button class="btn btn-disabled btn-sm" disabled title="Không thể hủy: Không thuộc học kỳ đăng ký sắp tới">Hủy đăng ký</button>`;
             } else {
                 cancelBtn = `<button class="btn btn-success btn-sm" onclick="xulyHuy(${ltc.MALTC}, '${ltc.TENMH}')" ${extraAttr}>Hủy đăng ký</button>`;
             }
@@ -240,6 +244,7 @@ function renderAll() {
             const isRegisteredOtherClassSameSubject = !isRegisteredThisClass && registeredMAMH.has(ltc.MAMH);
             const extraAttr = ltc.IS_FROZEN ? 'disabled style="filter:grayscale(1); opacity:0.4; cursor:not-allowed;" title="Lớp thuộc niên khóa cũ"' : '';
             
+            const isNotRegSemester = ltc.NIENKHOA !== REG_NK || parseInt(ltc.HOCKY) !== REG_HK;
             let btnHtml = '';
             if (QUAHAN) {
                 const titleAttr = `title="Bạn đã quá hạn 7 năm kể từ khóa học, không thể đăng ký"`;
@@ -253,12 +258,16 @@ function renderAll() {
                 if (!ltc.IS_FROZEN && (ltc.CO_DIEM || ltc.DA_NHAP_DIEM == 1)) {
                     cancelAttr = 'disabled style="filter:grayscale(1); opacity:0.4; cursor:not-allowed;" title="Không thể hủy vì đã được nhập điểm"';
                 }
-                if (ltc.DA_NHAP_DIEM == 1 || ltc.CO_DIEM) {
+                if (isNotRegSemester) {
+                    btnHtml = `<button class="btn btn-disabled btn-sm" disabled title="Không thể hủy: Không thuộc học kỳ đăng ký sắp tới" ${extraAttr}>Hủy đăng ký</button>`;
+                } else if (ltc.DA_NHAP_DIEM == 1 || ltc.CO_DIEM) {
                     btnHtml = `<button class="btn btn-disabled btn-sm" disabled title="Lớp học đã bắt đầu nhập điểm, không thể hủy đăng ký">Hủy đăng ký</button>`;
                 } else {
                     btnHtml = `<button class="btn btn-success btn-sm" onclick="xulyHuy(${ltc.MALTC}, '${ltc.TENMH}')" ${cancelAttr}>Hủy đăng ký</button>`;
                 }
                 if (ltc.CO_DIEM || ltc.DA_NHAP_DIEM == 1) btnHtml += '<span style="font-size:.7rem;color:#fbbf24;margin-left:.4rem;">📝</span>';
+            } else if (isNotRegSemester) {
+                btnHtml = `<button class="btn btn-disabled btn-sm" disabled title="Không thể đăng ký: Không thuộc học kỳ đăng ký sắp tới" ${extraAttr}>Đăng ký</button>`;
             } else if (isRegisteredOtherClassSameSubject) {
                 btnHtml = `<button class="btn btn-disabled btn-sm" title="Bạn đã đăng ký một lớp khác cho môn học này" ${extraAttr}>Đăng ký</button>`;
             } else if (ltc.DA_NHAP_DIEM == 1) {
