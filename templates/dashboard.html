@@ -205,13 +205,9 @@
                 <a href="/doimatkhau" class="menu-item">🔑 Đổi Mật Khẩu</a>
                 <a href="/quantri/taikhoan" class="menu-item">🔑 Tạo Tài Khoản</a>
                 {% else %}
-                    {% if not session.get('quahan') %}
-                    <a href="/dangky" class="menu-item">📝 Đăng ký Lớp Tín Chỉ</a>
-                    {% endif %}
-                    <a href="/phieu_diem" class="menu-item">📄 Bảng Điểm Cá Nhân</a>
-                    {% if not session.get('quahan') %}
-                    <a href="/doimatkhau" class="menu-item">🔑 Đổi Mật Khẩu</a>
-                    {% endif %}
+                <a href="/dangky" class="menu-item">📝 Đăng ký Lớp Tín Chỉ</a>
+                <a href="/phieu_diem" class="menu-item">📄 Bảng Điểm Cá Nhân</a>
+                <a href="/doimatkhau" class="menu-item">🔑 Đổi Mật Khẩu</a>
                 {% endif %}
             </div>
         </div>

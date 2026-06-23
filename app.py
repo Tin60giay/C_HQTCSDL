@@ -598,22 +598,6 @@ def login_required(f):
             return redirect(url_for('login'))
         return f(*args, **kwargs)
     return wrapped
-
-
-@app.before_request
-def check_quahan():
-    # Chỉ áp dụng kiểm tra khi là Sinh Viên và có cờ quahan = True
-    if session.get('role') == 'SV' and session.get('quahan'):
-        # Cho phép truy cập: trang phiếu điểm, dashboard, đăng xuất, trang chủ/login và các file tĩnh (static)
-        allowed_endpoints = ['phieu_diem', 'dashboard', 'logout', 'login', 'static']
-        if request.endpoint and request.endpoint not in allowed_endpoints:
-            # Nếu là yêu cầu AJAX (API) hoặc yêu cầu Đăng ký/Hủy/Đổi mật khẩu
-            if request.is_json or request.path.startswith('/dangky/') or request.path.startswith('/doimatkhau/'):
-                return jsonify({'ok': False, 'msg': 'Tài khoản của bạn đã quá hạn 7 năm, chỉ có thể xem điểm.'}), 403
-            flash('Tài khoản của bạn đã quá hạn 7 năm kể từ khóa học, chỉ có thể xem điểm cá nhân.')
-            return redirect(url_for('phieu_diem'))
-
-
 # ----------------------------------------------------------------
 # Auth routes
 # ----------------------------------------------------------------
@@ -2239,6 +2223,10 @@ def dangky_thuchien():
     try:
         cursor = conn.cursor()
         
+        # [QUA_HAN_SP_2026] Nếu SV đã quá hạn (KHOAHOC + 7 năm) → từ chối
+        if session.get('quahan'):
+            return jsonify({'ok': False, 'msg': 'Tài khoản của bạn đã quá hạn, chỉ có thể xem phiếu điểm.'})
+        
         # KIỂM TRA ĐÓNG BĂNG & HỌC KỲ ĐĂNG KÝ
         cursor.execute("SELECT NIENKHOA, HOCKY FROM LOPTINCHI WHERE MALTC = ?", (maltc,))
         res = cursor.fetchone()
@@ -2285,6 +2273,10 @@ def dangky_huy():
         return jsonify({'ok': False, 'msg': 'Không thể kết nối DB'}), 500
     try:
         cursor = conn.cursor()
+        
+        # [QUA_HAN_SP_2026] Nếu SV đã quá hạn → từ chối
+        if session.get('quahan'):
+            return jsonify({'ok': False, 'msg': 'Tài khoản của bạn đã quá hạn, không thể hủy đăng ký.'})
         
         # KIỂM TRA ĐÓNG BĂNG & HỌC KỲ ĐĂNG KÝ
         cursor.execute("SELECT NIENKHOA, HOCKY FROM LOPTINCHI WHERE MALTC = ?", (maltc,))
