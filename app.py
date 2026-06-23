@@ -6,7 +6,7 @@ import json
 app = Flask(__name__)
 app.secret_key = 'super_secret_key_qlds'
 
-SERVER_NAME = 'localhost'
+SERVER_NAME = 'localhost\\SQLEXPRESS'
 DATABASE_NAME = 'QLDSV_HTC'
 
 SV_SHARED_LOGIN = 'sv'
