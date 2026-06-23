@@ -338,9 +338,8 @@ function xoaTrang(){
     set('fHK', REG_HK);
     set('fMAMH','');set('fNHOM','1');
     set('fMAGV','');set('fMAKHOA_F','');set('fSOSV','10');
-    // Khóa fNK và fHK khi tạo mới vì PGV chỉ được tạo cho học kỳ đăng ký/tương lai
-    toggleFormLock(true, ['fNK', 'fHK']);
-    toggleFormLock(false, ['fMAMH', 'fNHOM', 'fMAGV', 'fMAKHOA_F', 'fSOSV']);
+    // Mở khóa toàn bộ khi tạo mới để PGV có thể chọn học kỳ tương lai khác
+    toggleFormLock(false, ['fNK', 'fHK', 'fMAMH', 'fNHOM', 'fMAGV', 'fMAKHOA_F', 'fSOSV']);
     updateActionButtons('adding');
     
     const btnXoa = document.getElementById('btnXoa');
