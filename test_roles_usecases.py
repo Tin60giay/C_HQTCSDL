@@ -5,7 +5,7 @@ import pyodbc
 
 def db_cleanup_ltc(maltc):
     try:
-        conn = pyodbc.connect('DRIVER={ODBC Driver 17 for SQL Server};SERVER=localhost;DATABASE=QLDSV_HTC;Trusted_Connection=yes;')
+        conn = pyodbc.connect('DRIVER={ODBC Driver 17 for SQL Server};SERVER=localhost\\SQLEXPRESS;DATABASE=QLDSV_HTC;Trusted_Connection=yes;')
         cursor = conn.cursor()
         cursor.execute("DELETE FROM DANGKY WHERE MALTC = ?", (maltc,))
         cursor.execute("DELETE FROM LOPTINCHI WHERE MALTC = ?", (maltc,))

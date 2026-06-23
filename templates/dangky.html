@@ -119,7 +119,7 @@
         <table>
             <thead>
                 <tr>
-                    <th>MALTC</th><th>Môn học</th><th>Nhóm</th><th>Giảng viên</th><th>Thao tác</th>
+                    <th>MAMH</th><th>Môn học</th><th>Nhóm</th><th>Giảng viên</th><th>Khoa</th><th>Số SV</th><th>Trạng thái</th>
                 </tr>
             </thead>
             <tbody id="tbodySelected"></tbody>
@@ -132,7 +132,7 @@
         <table>
             <thead>
                 <tr>
-                    <th>MALTC</th><th>Môn học</th><th>Nhóm</th><th>Giảng viên</th><th>Khoa</th><th>Số SV</th><th>Trạng thái</th>
+                    <th>MAMH</th><th>Môn học</th><th>Nhóm</th><th>Giảng viên</th><th>Khoa</th><th>Số SV</th><th>Trạng thái</th>
                 </tr>
             </thead>
             <tbody id="tbodyLTC"></tbody>
@@ -219,10 +219,12 @@ function renderAll() {
             }
             tbodySelected.innerHTML += `
                 <tr class="${ltc.IS_FROZEN ? 'frozen-row' : ''}">
-                    <td><b>${ltc.MALTC}</b> ${ltc.IS_FROZEN ? '<span class="frozen-badge">🔒</span>' : ''}</td>
-                    <td>${ltc.TENMH} <span class="badge badge-muted">${ltc.MAMH}</span></td>
+                    <td><b>${ltc.MAMH}</b> ${ltc.IS_FROZEN ? '<span class="frozen-badge">🔒</span>' : ''}</td>
+                    <td>${ltc.TENMH}</td>
                     <td>${ltc.NHOM}</td>
                     <td>${ltc.TENGV}</td>
+                    <td>${ltc.TENKHOA}</td>
+                    <td>${ltc.SOSV_DANGKY} / ${ltc.SOSVTOITHIEU}</td>
                     <td>
                         ${cancelBtn}
                         ${(ltc.CO_DIEM || ltc.DA_NHAP_DIEM == 1) ? '<span style="font-size:.7rem;color:#fbbf24;margin-left:.4rem;">📝 Đã có điểm</span>' : ''}
@@ -276,8 +278,8 @@ function renderAll() {
 
             tbodyLTC.innerHTML += `
                 <tr class="${ltc.IS_FROZEN ? 'frozen-row' : ''}">
-                    <td>${ltc.MALTC} ${ltc.IS_FROZEN ? '<span class="frozen-badge">🔒</span>' : ''}</td>
-                    <td>${ltc.TENMH} <span class="badge badge-muted">${ltc.MAMH}</span></td>
+                    <td>${ltc.MAMH} ${ltc.IS_FROZEN ? '<span class="frozen-badge">🔒</span>' : ''}</td>
+                    <td>${ltc.TENMH}</td>
                     <td>${ltc.NHOM}</td>
                     <td>${ltc.TENGV}</td>
                     <td>${ltc.TENKHOA}</td>
