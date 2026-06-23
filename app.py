@@ -1610,9 +1610,6 @@ def loptinchi():
     nienkhoa = request.args.get('nienkhoa', '')
     hocky = request.args.get('hocky', '')
     makhoa_filter = request.args.get('makhoa', '')
-    # [PLANT_LTC_BUGS_2026] Mặc định NK mới nhất hiện có trong LOPTINCHI
-    if not nienkhoa:
-        nienkhoa = get_default_nk_ltc()
 
     if conn:
         try:

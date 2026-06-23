@@ -75,7 +75,7 @@
             <div class="fg">
                 <label>Niên khóa</label>
                 <select id="fNK_filter" onchange="locFilter()">
-                    <option value="">-- Tất cả --</option>
+                    <option value="" {% if not nienkhoa %}selected{% endif %}>-- Tất cả --</option>
                     {% for nk in nienkhoa_list %}
                     {% set nk_start = nk.split('-')[0]|int if nk and '-' in nk else 0 %}
                     <option value="{{ nk }}" {% if nienkhoa==nk %}selected{% endif %}>{{ nk }}{% if nk_start and nk_start < 2025 %} 🔒{% endif %}</option>
@@ -220,7 +220,7 @@ function locFilter() {
     const hk = document.getElementById('fHK_filter').value;
     const khoa = document.getElementById('fKHOA_filter').value;
     const url = new URL(window.location.href);
-    if (nk) url.searchParams.set('nienkhoa', nk); else url.searchParams.delete('nienkhoa');
+    url.searchParams.set('nienkhoa', nk); // Giữ tham số trống để backend phân biệt với None (lần đầu load)
     if (hk) url.searchParams.set('hocky', hk); else url.searchParams.delete('hocky');
     if (khoa) url.searchParams.set('makhoa', khoa); else url.searchParams.delete('makhoa');
     window.location.href = url.toString();
